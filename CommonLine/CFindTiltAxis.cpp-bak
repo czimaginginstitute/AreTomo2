@@ -1,0 +1,385 @@
+#include "CCommonLineInc.h"
+#include <CuUtilFFT/GFFT1D.h>
+#include <Util/Util_LinEqs.h>
+#include <memory.h>
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+
+using namespace CommonLine;
+
+CFindTiltAxis::CFindTiltAxis(void)
+{
+	m_pfRotAngles = 0L;
+	m_pfFitAngles = 0L;
+	m_piLineIndices = 0L;
+	m_pfCCs = 0L;
+	m_gCmpRef = 0L;
+	m_iGroup = 2;
+}
+
+CFindTiltAxis::~CFindTiltAxis(void)
+{
+	if(m_pfRotAngles != 0L) delete[] m_pfRotAngles;
+	if(m_pfFitAngles != 0L) delete[] m_pfFitAngles;
+	if(m_piLineIndices != 0L) delete[] m_piLineIndices;
+	if(m_pfCCs != 0L) delete[] m_pfCCs;
+}
+
+float CFindTiltAxis::DoIt
+(	CLineBuf* pLineBuf,
+	int iIterations
+)
+{	m_pLineBuf = pLineBuf;
+	m_iNumImgs = m_pLineBuf->m_iNumImgs;
+	m_iNumLines = m_pLineBuf->m_iLinesPerImg;
+	m_iCmpSize = m_pLineBuf->m_iCmpSize;
+	//----------------------------------
+	if(m_pfRotAngles != 0L) delete[] m_pfRotAngles;
+	if(m_pfFitAngles != 0L) delete[] m_pfFitAngles;
+	if(m_pfCCs != 0L) delete[] m_pfCCs;
+	m_pfRotAngles = new float[m_iNumImgs];
+	m_pfFitAngles = new float[m_iNumImgs];
+	m_piLineIndices = new int[m_iNumImgs];
+	m_pfCCs = new float[m_iNumImgs];
+	memset(m_pfRotAngles, 0, sizeof(float) * m_iNumImgs);
+	//---------------------------------------------------
+	srand(time(0L));
+	for(int i=0; i<m_iNumImgs; i++)
+	{	m_piLineIndices[i] = rand() % m_iNumLines;
+	}
+	m_gCmpRef = mCudaMallocLine(false);
+	mCalcRef();
+	m_fScore = mCalcScore();
+	//----------------------
+	float fTol = 0.1f;
+	float* pfScores = new float[iIterations];
+	for(int i=0; i<iIterations; i++)
+	{	float fErr = mDoIteration(i);
+		pfScores[i] = m_fScore;
+		if(fErr <= fTol) break;
+	}
+	//-----------------------------
+	mSmooth();
+	//--------
+	for(int i=0; i<m_iNumImgs; i++)
+        {       int iLine = m_piLineIndices[i];
+                m_pfRotAngles[i] = m_pLineBuf->GetAngle(iLine);
+                printf
+                (  " %3d  %7.2f  %7.2f  %10.4e\n",
+                   i, m_pfRotAngles[i], m_pfFitAngles[i], m_pfCCs[i]
+                );
+        }
+	printf("\n");
+        for(int i=0; i<iIterations; i++)
+	{	printf("Iteration (%2d): score = %f\n", i+1, pfScores[i]);
+	}
+	printf("\n");
+	if(pfScores != 0L) delete[] pfScores;
+	//-----------------------------------
+	if(m_gCmpRef != 0L) cudaFree(m_gCmpRef);
+	m_gCmpRef = 0L;
+	return m_fScore;
+}
+
+float CFindTiltAxis::mDoIteration(int iIteration)
+{
+	mCalcRef();
+	m_fScore = mCalcScore();
+	//----------------------
+	srand(time(0L));
+	int iStart = rand();
+	//------------------
+	for(int i=0; i<m_iNumImgs; i++)
+	{	int j = (i + iStart) % m_iNumImgs;
+		int iOldLine = m_piLineIndices[j];
+		m_piLineIndices[j] = mAlign(j);
+		float fScore = mCalcScore();
+		if(fScore > m_fScore)
+		{	m_fScore = fScore;
+			mCalcRef();
+		}
+		else
+		{	m_piLineIndices[j] = iOldLine;
+		}
+	}
+	//--------------------------------------------
+	double dErr = 0.0;
+	for(int i=0; i<m_iNumImgs; i++)
+	{	int iLine = m_piLineIndices[i];
+		float fAngle = m_pLineBuf->GetAngle(iLine);
+		dErr += fabs(fAngle - m_pfRotAngles[i]);
+		m_pfRotAngles[i] = fAngle;
+		printf
+		(  " %3d  %7.2f  %10.4e\n", i, m_pfRotAngles[i], m_pfCCs[i]
+		);
+	}
+	dErr /= m_iNumImgs;
+	printf("Iteration (%2d) score: %f\n\n", iIteration+1, m_fScore);
+	return (float)dErr;
+}
+
+float* CFindTiltAxis::GetRotAngles(bool bClean)
+{
+	float* pfRotAngles = m_pfRotAngles;
+	if(bClean) m_pfRotAngles = 0L;
+	return pfRotAngles;
+}
+
+float* CFindTiltAxis::GetFitAngles(bool bClean)
+{
+	float* pfFitAngles = m_pfFitAngles;
+	if(bClean) m_pfFitAngles = 0L;
+	return pfFitAngles;
+}
+
+void CFindTiltAxis::mCalcRef(void)
+{
+	size_t tBytes = sizeof(cufftComplex) * m_iCmpSize;
+	cudaMemset(m_gCmpRef, 0, tBytes);
+	cufftComplex* gCmpLine = mCudaMallocLine(false);
+	//----------------------------------------------
+	GAddTwoLines aGAddTwoLines;
+	for(int i=0; i<m_iNumImgs; i++)
+	{	int iLine = m_piLineIndices[i];
+		m_pLineBuf->GetLine(i, m_piLineIndices[i], gCmpLine);
+		aGAddTwoLines.DoIt
+		(  gCmpLine, m_gCmpRef, m_gCmpRef, 1, m_iCmpSize
+		);
+	}
+	if(gCmpLine != 0L) cudaFree(gCmpLine);
+}
+	
+
+int CFindTiltAxis::mAlign(int iImage)
+{
+	int iCentLine = m_iNumLines / 2;
+	cufftComplex* gCmpRef = mGetLine(iImage, iCentLine, m_iGroup);
+	//------------------------------------------------------------
+	int iOperator = -1;
+	GAddTwoLines aGAddTwoLines;
+	aGAddTwoLines.DoIt(m_gCmpRef, gCmpRef, gCmpRef, -1, m_iCmpSize);
+	//--------------------------------------------------------------
+	GCC1D aGCC1D;
+	int iMax = -1;
+	float fCCMax = (float)-1e10;
+	//--------------------------
+	for(int i=0; i<m_iNumLines; i++)
+	{	cufftComplex* gCmpLine = mGetLine(iImage, i, m_iGroup);
+		float fCC = aGCC1D.DoIt(gCmpRef, gCmpLine, m_iCmpSize);
+		if(fCC > fCCMax)
+		{	fCCMax = fCC;
+			iMax = i;
+		}
+		float fAngle = m_pLineBuf->GetAngle(i);
+		float fAngleMax = m_pLineBuf->GetAngle(iMax);
+		/*
+		printf
+		(  "...... %3d  %7.2f  %7.2f  %12.4e\n", 
+		   i, fAngle, fAngleMax, fCC
+		);
+		*/
+		if(gCmpLine != 0L) cudaFree(gCmpLine);
+	}
+	m_pfCCs[iImage] = fCCMax;
+	if(gCmpRef != 0L) cudaFree(gCmpRef);
+	return iMax;	
+}
+
+cufftComplex* CFindTiltAxis::mGetLine(int iImage, int iLine, int iGroup)
+{
+	bool bZero = true;
+	cufftComplex* gCmpSum = mCudaMallocLine(bZero);
+	cufftComplex* gCmpLine = mCudaMallocLine(!bZero);
+	//-----------------------------------------------
+	int iImgStart = iImage - iGroup / 2;
+	if(iImgStart < 0) iImgStart = 0;
+	int iImgEnd = iImgStart + iGroup;
+	if(iImgEnd >= m_pLineBuf->m_iNumImgs) 
+	{	iImgEnd = m_pLineBuf->m_iNumImgs - 1;
+	}
+	//-------------------------------------------
+	GAddTwoLines aGAddTwoLines;
+	for(int i=iImgStart; i<iImgEnd; i++)
+	{	m_pLineBuf->GetLine(i, iLine, gCmpLine);
+		aGAddTwoLines.DoIt
+		(  gCmpLine, gCmpSum, gCmpSum, 
+		   1, m_iCmpSize
+		);
+	}
+	//----------------------
+	if(gCmpLine != 0L) cudaFree(gCmpLine);
+	return gCmpSum;
+}
+/*
+bool CFindTiltAxis::mSmooth(void)
+{
+	int* piX = new int[m_iNumImgs];
+	for(int i=0; i<m_iNumImgs; i++)
+	{	piX[i] = i;
+		m_pfFitAngles[i] = m_pfRotAngles[i];
+	}
+	//-----------------
+	float afFit[4] = {0.0f};
+	bool bSuccess = mFit3(piX, m_pfRotAngles, m_iNumImgs, afFit);
+	if(!bSuccess) return false;
+	//-------------------------
+	double dStd = 0.0f;
+	for(int i=0; i<m_iNumImgs; i++)
+	{	m_pfFitAngles[i] = afFit[0] + afFit[1] * i 
+			+ afFit[2] * i * i
+			+ afFit[3] * i * i * i;
+		float fDif = m_pfRotAngles[i] - m_pfFitAngles[i];
+		dStd += (fDif * fDif);
+	}
+	dStd = 3 * sqrtf(dStd / m_iNumImgs);
+	if(dStd > 0.5) dStd = 0.5;
+	//------------------------
+	int iCount = 0;
+	float* pfRotAngles = new float[m_iNumImgs];
+	for(int i=0; i<m_iNumImgs; i++)
+	{	double dDif = fabs(m_pfRotAngles[i] - m_pfFitAngles[i]);
+		if(dDif > dStd) continue;
+		piX[iCount] = i;
+		pfRotAngles[iCount] = m_pfRotAngles[i];
+		iCount++;
+	}
+	//---------------
+	bSuccess = mFit3(piX, pfRotAngles, iCount, afFit);
+	if(bSuccess)
+	{	for(int i=0; i<m_iNumImgs; i++)
+		{	m_pfFitAngles[i] = afFit[0] + afFit[1] * i 
+				+ afFit[2] * i * i
+				+ afFit[3] * i * i * i;
+		}
+	}
+	//-----------------------------------------
+	if(piX != 0L) delete[] piX;
+	if(pfRotAngles != 0L) delete[] pfRotAngles;
+	return bSuccess;
+}
+*/
+
+bool CFindTiltAxis::mSmooth(void)
+{
+        int* piX = new int[m_iNumImgs];
+	float* pfWeights = new float[m_iNumImgs];
+        for(int i=0; i<m_iNumImgs; i++)
+        {       piX[i] = i;
+                m_pfFitAngles[i] = m_pfRotAngles[i];
+		pfWeights[i] = m_pfCCs[i];
+        }
+        //------------------------------------------
+        float afFit[4] = {0.0f};
+	bool bSuccess = mFit3(piX, m_pfRotAngles, pfWeights, m_iNumImgs, afFit);
+	if(pfWeights != 0L) delete[] pfWeights;
+        //-------------------------------------
+        for(int i=0; i<m_iNumImgs; i++)
+        {       m_pfFitAngles[i] = afFit[0] + afFit[1] * i
+			+ afFit[2] * i * i
+			+ afFit[3] * i * i * i;
+        }
+	return true;
+}
+
+cufftComplex* CFindTiltAxis::mCudaMallocLine(bool bZero)
+{
+	cufftComplex* gCmpLine = 0L;
+	size_t tBytes = sizeof(cufftComplex) * m_iCmpSize;
+	cudaMalloc(&gCmpLine, tBytes);
+	if(bZero) cudaMemset(gCmpLine, 0, tBytes);
+	return gCmpLine;
+}
+
+bool CFindTiltAxis::mFit
+(	int* piX, 
+	float* pfRot, 
+	int iSize,
+	float afFit[3]
+)
+{	double adX[5] = {0};
+        for(int i=0; i<iSize; i++)
+        {       double dX = piX[i];
+                adX[1] += dX;
+                for(int j=2; j<=4; j++)
+                {       dX *= piX[i];
+                        adX[j] += dX;
+                }
+        }
+        for(int i=1; i<=4; i++)
+        {       adX[i] /= iSize;
+        }
+        float afCoeff[] =
+        {  1.0f,          (float)adX[1], (float)adX[2],
+           (float)adX[1], (float)adX[2], (float)adX[3],
+           (float)adX[2], (float)adX[3], (float)adX[4]
+        };
+        //--------------------------------------------
+	double dY = 0, dX1Y = 0, dX2Y = 0;
+        for(int i=0; i<iSize; i++)
+        {       double dRot = pfRot[i];
+                dY += dRot;
+                dX1Y += (dRot * piX[i]);
+                dX2Y += (dRot * piX[i] * piX[i]);
+        }
+        afFit[0] = (float)(dY / iSize);
+        afFit[1] = (float)(dX1Y / iSize);
+        afFit[2] = (float)(dX2Y / iSize);
+        //-------------------------------
+        Util_LinEqs aLinEqs;
+        bool bSuccess = aLinEqs.DoIt(afCoeff, afFit, 3);
+	return bSuccess;
+}
+	
+bool CFindTiltAxis::mFit3
+(	int* piX,
+	float* pfRot,
+	float* pfW,
+	int iSize,
+	float afFit[4]
+)
+{	double adX[7] = {0};
+        for(int i=0; i<iSize; i++)
+        {       float fW = (pfW != 0L) ? pfW[i] : 1.0f;
+		adX[0] += fW;
+		double dX = 1.0;
+		for(int j=1; j<=6; j++)
+		{	dX *= piX[i];
+			adX[j] += (dX * fW);
+		}
+	}
+	for(int i=0; i<=6; i++)
+	{	adX[i] /= iSize;
+	}
+	float afCoeff[] = 
+	{  (float)adX[0], (float)adX[1], (float)adX[2], (float)adX[3],
+	   (float)adX[1], (float)adX[2], (float)adX[3], (float)adX[4],
+	   (float)adX[2], (float)adX[3], (float)adX[4], (float)adX[5],
+	   (float)adX[3], (float)adX[4], (float)adX[5], (float)adX[6]
+	};
+	//-----------------------------------------------------------
+	double dY = 0, dX1Y = 0, dX2Y = 0, dX3Y = 0;
+	for(int i=0; i<iSize; i++)
+	{	double dRot = pfRot[i];
+		float fW = (pfW != 0L) ? pfW[i] : 1.0f;
+		dY += (dRot * fW);
+                dX1Y += (dRot * piX[i] * fW);
+                dX2Y += (dRot * piX[i] * piX[i] * fW);
+		dX3Y += (dRot * piX[i] * piX[i] * piX[i] * fW);
+        }
+	afFit[0] = (float)(dY / iSize);
+	afFit[1] = (float)(dX1Y / iSize);
+	afFit[2] = (float)(dX2Y / iSize);
+	afFit[3] = (float)(dX3Y / iSize);
+	//-------------------------------
+	Util_LinEqs aLinEqs;
+        bool bSuccess = aLinEqs.DoIt(afCoeff, afFit, 4);
+        return bSuccess;
+}
+
+float CFindTiltAxis::mCalcScore(void)
+{
+	CCalcScore aCalcScore;
+	float fScore = aCalcScore.DoIt(m_pLineBuf, m_piLineIndices);
+	return fScore;
+}

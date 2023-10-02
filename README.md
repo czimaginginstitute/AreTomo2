@@ -1,1 +1,1 @@
-# AreTomo2
+# AreTomo

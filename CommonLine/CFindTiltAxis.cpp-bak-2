@@ -1,0 +1,263 @@
+#include "CCommonLineInc.h"
+#include <CuUtilFFT/GFFT1D.h>
+#include <Util/Util_LinEqs.h>
+#include <memory.h>
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+
+using namespace CommonLine;
+
+CFindTiltAxis::CFindTiltAxis(void)
+{
+	m_pfRotAngles = 0L;
+	m_piLineIndices = 0L;
+	m_pfCCs = 0L;
+	m_gCmpRef = 0L;
+	m_iGroup = 2;
+}
+
+CFindTiltAxis::~CFindTiltAxis(void)
+{
+	if(m_pfRotAngles != 0L) delete[] m_pfRotAngles;
+	if(m_piLineIndices != 0L) delete[] m_piLineIndices;
+	if(m_pfCCs != 0L) delete[] m_pfCCs;
+}
+
+float CFindTiltAxis::DoIt
+(	CLineBuf* pLineBuf,
+	int iIterations
+)
+{	m_pLineBuf = pLineBuf;
+	m_iNumImgs = m_pLineBuf->m_iNumImgs;
+	m_iNumLines = m_pLineBuf->m_iLinesPerImg;
+	m_iCmpSize = m_pLineBuf->m_iCmpSize;
+	//----------------------------------
+	if(m_pfRotAngles != 0L) delete[] m_pfRotAngles;
+	if(m_pfCCs != 0L) delete[] m_pfCCs;
+	m_pfRotAngles = new float[m_iNumImgs];
+	m_piLineIndices = new int[m_iNumImgs];
+	m_pfCCs = new float[m_iNumImgs];
+	memset(m_pfRotAngles, 0, sizeof(float) * m_iNumImgs);
+	m_gCmpRef = mCudaMallocLine(false);
+	//---------------------------------
+	mInitialize();
+	//------------
+	float fTol = 0.005f;
+	int iDoneIterations = 0;
+	float* pfScores = new float[iIterations];
+	for(int i=0; i<iIterations; i++)
+	{	float fErr = mDoIteration(i);
+		pfScores[i] = m_fScore;
+		iDoneIterations++;
+		if(fErr <= fTol) break;
+	}
+	//-----------------------------
+	for(int i=0; i<m_iNumImgs; i++)
+        {       int iLine = m_piLineIndices[i];
+                m_pfRotAngles[i] = m_pLineBuf->GetAngle(iLine);
+                printf(" %3d  %7.2f %10.4e\n",
+			i, m_pfRotAngles[i], m_pfCCs[i]);
+        }
+	printf("\n");
+        for(int i=0; i<iDoneIterations; i++)
+	{	printf("Iteration (%2d): score = %f\n", i+1, pfScores[i]);
+	}
+	printf("\n");
+	if(pfScores != 0L) delete[] pfScores;
+	//-----------------------------------
+	if(m_gCmpRef != 0L) cudaFree(m_gCmpRef);
+	m_gCmpRef = 0L;
+	return m_fScore;
+}
+
+void CFindTiltAxis::mInitialize(void)
+{
+	float* pfScores = new float[m_iNumLines];
+        double dSum = 0.0;
+        for(int j=0; j<m_iNumLines; j++)
+        {       for(int i=0; i<m_iNumImgs; i++)
+                {       m_piLineIndices[i] = j;
+                }
+                pfScores[j] = mCalcScore();
+		dSum += pfScores[j];
+	}
+	//--------------------------
+	double dBestLine = 0.0;
+	for(int i=0; i<m_iNumLines; i++)
+	{	double dW = pfScores[i] / dSum;
+		dBestLine += (i * dW); 
+		printf("%d  %f  %f\n", i, pfScores[i], dW);
+	}
+	int iBestLine = (int)(dBestLine + 0.5);
+	if(iBestLine < 0) iBestLine = m_iNumLines / 2;
+	if(iBestLine >= m_iNumLines) iBestLine = m_iNumLines / 2;
+	m_fScore = pfScores[iBestLine];
+        printf("Best starting line: %d  %f  %f\n\n", 
+		iBestLine, dBestLine, m_fScore);
+	//------------------------------------------------------------
+        for(int i=0; i<m_iNumImgs; i++)
+        {       m_piLineIndices[i] = iBestLine;
+        }
+	if(pfScores != 0L) delete[] pfScores;
+}
+
+float CFindTiltAxis::mDoIteration(int iIteration)
+{
+	int* piBestLines = new int[m_iNumImgs];
+	memcpy(piBestLines, m_piLineIndices, sizeof(int) * m_iNumImgs);
+	//-------------------------------------------------------------
+	mCalcRef();
+	float fBestScore = 0.0f;
+	//----------------------
+	int iCentImg = m_iNumImgs / 2;
+	for(int i=0; i<iCentImg; i++)
+	{	int iNewLine = mAlign(i);
+		if(iNewLine == m_piLineIndices[i]) continue;
+		//------------------------------------------
+		int iOldLine = m_piLineIndices[i];
+		m_piLineIndices[i] = iNewLine;
+		float fScore = mCalcScore();
+		if(fScore > fBestScore)
+		{	fBestScore = fScore;
+			mCalcRef();
+		}
+		else
+		{	m_piLineIndices[i] = iOldLine;
+		}
+	}
+	for(int i=(m_iNumImgs-1); i>=iCentImg; i--)
+	{	int iNewLine = mAlign(i);
+                if(iNewLine == m_piLineIndices[i]) continue;
+                //------------------------------------------
+                int iOldLine = m_piLineIndices[i];
+                m_piLineIndices[i] = iNewLine;
+                float fScore = mCalcScore();
+                if(fScore > fBestScore)
+                {       fBestScore = fScore;
+                        mCalcRef();
+                }
+                else
+                {       m_piLineIndices[i] = iOldLine;
+                }
+	}
+	//--------------------------------------------
+	if(fBestScore >  m_fScore)
+	{	delete[] piBestLines;
+		m_fScore = fBestScore;
+	}
+	else
+	{	delete[] m_piLineIndices;
+		m_piLineIndices = piBestLines;
+	}
+	//------------------------------------
+	double dErr = 0.0;
+	for(int i=0; i<m_iNumImgs; i++)
+	{	int iLine = m_piLineIndices[i];
+		float fAngle = m_pLineBuf->GetAngle(iLine);
+		dErr += fabs(fAngle - m_pfRotAngles[i]);
+		m_pfRotAngles[i] = fAngle;
+		printf
+		(  " %3d  %7.2f  %10.4e\n", i, m_pfRotAngles[i], m_pfCCs[i]
+		);
+	}
+	dErr /= m_iNumImgs;
+	printf("Iteration (%2d) score: %f\n\n", iIteration+1, m_fScore);
+	return (float)dErr;
+}
+
+float* CFindTiltAxis::GetRotAngles(bool bClean)
+{
+	float* pfRotAngles = m_pfRotAngles;
+	if(bClean) m_pfRotAngles = 0L;
+	return pfRotAngles;
+}
+
+void CFindTiltAxis::mCalcRef(void)
+{
+	size_t tBytes = sizeof(cufftComplex) * m_iCmpSize;
+	cudaMemset(m_gCmpRef, 0, tBytes);
+	cufftComplex* gCmpLine = mCudaMallocLine(false);
+	//----------------------------------------------
+	GAddTwoLines aGAddTwoLines;
+	for(int i=0; i<m_iNumImgs; i++)
+	{	int iLine = m_piLineIndices[i];
+		m_pLineBuf->GetLine(i, m_piLineIndices[i], gCmpLine);
+		aGAddTwoLines.DoIt
+		(  gCmpLine, m_gCmpRef, m_gCmpRef, 1, m_iCmpSize
+		);
+	}
+	if(gCmpLine != 0L) cudaFree(gCmpLine);
+}
+	
+
+int CFindTiltAxis::mAlign(int iImage)
+{
+	int iRefLine = m_piLineIndices[iImage];
+	cufftComplex* gCmpRef = mGetLine(iImage, iRefLine, m_iGroup);
+	//-----------------------------------------------------------
+	int iOperator = -1;
+	GAddTwoLines aGAddTwoLines;
+	aGAddTwoLines.DoIt(m_gCmpRef, gCmpRef, gCmpRef, -1, m_iCmpSize);
+	//--------------------------------------------------------------
+	GCC1D aGCC1D;
+	int iMax = -1;
+	float fCCMax = (float)-1e10;
+	//--------------------------
+	for(int i=0; i<m_iNumLines; i++)
+	{	cufftComplex* gCmpLine = mGetLine(iImage, i, m_iGroup);
+		float fCC = aGCC1D.DoIt(gCmpRef, gCmpLine, m_iCmpSize);
+		if(fCC > fCCMax)
+		{	fCCMax = fCC;
+			iMax = i;
+		}
+		float fAngle = m_pLineBuf->GetAngle(i);
+		float fAngleMax = m_pLineBuf->GetAngle(iMax);
+		if(gCmpLine != 0L) cudaFree(gCmpLine);
+	}
+	m_pfCCs[iImage] = fCCMax;
+	if(gCmpRef != 0L) cudaFree(gCmpRef);
+	return iMax;	
+}
+
+cufftComplex* CFindTiltAxis::mGetLine(int iImage, int iLine, int iGroup)
+{
+	bool bZero = true;
+	cufftComplex* gCmpSum = mCudaMallocLine(bZero);
+	cufftComplex* gCmpLine = mCudaMallocLine(!bZero);
+	//-----------------------------------------------
+	int iImgStart = iImage - iGroup / 2;
+	if(iImgStart < 0) iImgStart = 0;
+	int iImgEnd = iImgStart + iGroup;
+	if(iImgEnd >= m_pLineBuf->m_iNumImgs) 
+	{	iImgEnd = m_pLineBuf->m_iNumImgs - 1;
+	}
+	//-------------------------------------------
+	GAddTwoLines aGAddTwoLines;
+	for(int i=iImgStart; i<iImgEnd; i++)
+	{	m_pLineBuf->GetLine(i, iLine, gCmpLine);
+		aGAddTwoLines.DoIt
+		(  gCmpLine, gCmpSum, gCmpSum, 
+		   1, m_iCmpSize
+		);
+	}
+	//----------------------
+	if(gCmpLine != 0L) cudaFree(gCmpLine);
+	return gCmpSum;
+}
+
+cufftComplex* CFindTiltAxis::mCudaMallocLine(bool bZero)
+{
+	cufftComplex* gCmpLine = 0L;
+	size_t tBytes = sizeof(cufftComplex) * m_iCmpSize;
+	cudaMalloc(&gCmpLine, tBytes);
+	if(bZero) cudaMemset(gCmpLine, 0, tBytes);
+	return gCmpLine;
+}
+
+float CFindTiltAxis::mCalcScore(void)
+{
+	CCalcScore aCalcScore;
+	float fScore = aCalcScore.DoIt(m_pLineBuf, m_piLineIndices);
+	return fScore;
+}

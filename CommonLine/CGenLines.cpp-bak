@@ -1,0 +1,197 @@
+#include "CCommonLineInc.h"
+#include "../CInput.h"
+#include "../Util/CUtilInc.h"
+#include <CuUtilFFT/GFFT1D.h>
+#include <memory.h>
+#include <stdio.h>
+
+using namespace CommonLine;
+
+void mFindMMM(float* gfPadLine, int iPadSize)
+{
+	int iSize = (iPadSize / 2 - 1) * 2;
+	float* pfLine = new float[iSize];
+	cudaMemcpy(pfLine, gfPadLine, iSize * sizeof(float), cudaMemcpyDefault);
+	float fMin = pfLine[0];
+	float fMax = pfLine[0];
+	float fMean = 0;
+	for(int i=0; i<iSize; i++)
+	{	if(pfLine[i] < fMin) fMin = pfLine[i];
+		else if(pfLine[i] > fMax) fMax = pfLine[i];
+		if(pfLine[i] > 0) fMean += (pfLine[i] / iSize);
+	}
+	delete[] pfLine;
+	printf("CGenLines: Line min max min: %e  %e  %e\n", fMin, fMax, fMean);
+}
+
+void mFindImageMMM(float* gfImg, int* piImgSize)
+{
+	int iPixels = piImgSize[0] * piImgSize[1];
+	size_t tBytes = sizeof(float) * iPixels;
+	float* pfImg = new float[iPixels];
+	cudaMemcpy(pfImg, gfImg, tBytes, cudaMemcpyDefault);
+	//--------------------------------------------------
+	float fMin = pfImg[0];
+	float fMax = pfImg[1];
+	float fMean = 0.0f;
+	for(int i=0; i<iPixels; i++)
+	{	if(pfImg[i] < fMin) fMin = pfImg[i];
+		else if(pfImg[i] > fMax) fMax = pfImg[i];
+		if(pfImg[i] > 0) fMean += (pfImg[i] / iPixels);
+	}
+	delete[] pfImg;
+	printf("CGenLines: Image min max mean: %e  %e  %e\n", fMin, fMax, fMean);
+}
+
+CGenLines::CGenLines(void)
+{
+	m_pLineBuf = 0L;
+	m_gfPadLines = 0L;
+}
+
+CGenLines::~CGenLines(void)
+{
+	this->Clean();
+}
+
+void CGenLines::Clean(void)
+{
+	if(m_pLineBuf != 0L) delete m_pLineBuf;
+	m_pLineBuf = 0L;
+	//--------------
+	if(m_gfPadLines != 0L) cudaFree(m_gfPadLines);
+	m_gfPadLines = 0L;
+	//----------------
+	m_calcCommonRegion.Clean();
+	m_genCommonLine.Clean();
+	m_fft1D.DestroyPlan();
+}	
+
+CLineBuf* CGenLines::DoIt
+(	MrcUtil::CTomoStack* pTomoStack,
+	Correct::CStackShift* pStackShift,
+	float fAngRange,
+	int iNumAngles
+)
+{	m_pTomoStack = pTomoStack;
+	m_pStackShift = pStackShift;
+	m_iNumAngles = iNumAngles;
+	//------------------------
+	m_iNumImgs = m_pTomoStack->m_aiProjSize[2];
+	m_iImgSizeY = m_pTomoStack->m_aiProjSize[1];
+	m_iPadSizeY = (m_iImgSizeY / 2 + 1) * 2;
+	m_fAngStep = fAngRange / (m_iNumAngles - 1);
+	//------------------------------------------
+	mCreateLineBuf();
+	mFindCommonRegion();
+	mGenLines();
+	//----------
+	CLineBuf* pLineBuf = m_pLineBuf;
+	m_pLineBuf = 0L;
+	//--------------
+	this->Clean();
+	return pLineBuf;
+}
+
+void CGenLines::mCreateLineBuf(void)
+{
+	if(m_pLineBuf != 0L) delete m_pLineBuf;
+	m_pLineBuf = new CLineBuf;
+	m_pLineBuf->Setup
+	( m_pTomoStack->m_aiProjSize[1],
+	  m_pTomoStack->m_aiProjSize[2],
+	  m_iNumAngles
+	);
+}
+
+void CGenLines::mFindCommonRegion(void)
+{
+	int iZeroTilt = m_pTomoStack->GetTiltIndex(0.0f);
+	float* pfRotAngles = mGetRotAngles(iZeroTilt);
+	//--------------------------------------------
+	float afShift[] = {0.0f, 0.0f};
+	m_pStackShift->GetShift(iZeroTilt, afShift);
+	//------------------------------------------
+	m_calcCommonRegion.DoIt
+	( pfRotAngles, m_iNumAngles, 
+	  m_pTomoStack->m_aiProjSize, afShift
+	);
+	if(pfRotAngles != 0L) delete[] pfRotAngles;
+}
+
+void CGenLines::mGenLines(void)
+{
+	size_t tBytes = sizeof(float) * m_iNumAngles * m_iPadSizeY;
+	cudaMalloc(&m_gfPadLines, tBytes);
+	//--------------------------------
+	bool bForward = true, bPadded = true;
+	m_fft1D.CreatePlan(m_iImgSizeY, m_iNumAngles, bForward);
+	m_genCommonLine.Setup(m_pTomoStack->m_aiProjSize, !bPadded);
+	//----------------------------------------------------------
+	printf("Generate potential common lines.\n");
+	for(int i=0; i<m_iNumImgs; i++)
+	{	mGenImageLines(i);
+	}
+	cudaFree(m_gfPadLines);
+	m_gfPadLines = 0L;
+	m_fft1D.DestroyPlan();
+	m_genCommonLine.Clean();
+	//----------------------
+	printf("Common line candidates generated.\n\n");
+}
+
+void CGenLines::mGenImageLines(int iImage)
+{	
+	bool bGpu = true;
+	int* piImgSize = m_pTomoStack->m_aiProjSize;
+	float fTiltAngle = m_pTomoStack->GetTiltA(iImage);
+	float* pfImage = m_pTomoStack->GetProj(iImage);
+	float* pfRotAngles = mGetRotAngles(iImage);
+	//mFindImageMMM(pfImage, piImgSize);
+	//---------------------------------------------
+	float afShift[2] = {0.0f};
+	m_pStackShift->GetShift(iImage, afShift);
+	//---------------------------------------
+	m_genCommonLine.DoMany
+	( pfImage, afShift, pfRotAngles, m_iNumAngles,
+	  m_calcCommonRegion.m_giCommonRegion,
+	  fTiltAngle, m_gfPadLines
+	);
+	//------------------------
+	mForwardFFT();	
+	for(int i=0; i<m_iNumAngles; i++)
+	{	float* gfPadLine = m_gfPadLines + i * m_iPadSizeY;
+		m_pLineBuf->SetLine
+		( (cufftComplex*)gfPadLine, fTiltAngle, 
+		  pfRotAngles[i], iImage, i
+		);
+	}
+	delete[] pfRotAngles;
+}
+
+void CGenLines::mForwardFFT(void)
+{
+	GRemoveMean removeMean;
+	Util::GRoundEdge1D roundEdge;
+	//---------------------------
+	for(int i=0; i<m_iNumAngles; i++)
+	{	float* gfPadLine = m_gfPadLines + i * m_iPadSizeY;
+		removeMean.DoIt(gfPadLine, m_iPadSizeY);
+		//roundEdge.DoPad(gfPadLine, m_iPadSizeY);
+	}
+	//-------------------------------------------
+	bool bNorm = true;
+	m_fft1D.Forward(m_gfPadLines, !bNorm);
+}
+
+float* CGenLines::mGetRotAngles(int iTiltIndex)
+{
+	float fTiltAxis = m_pTomoStack->GetTiltAxis(iTiltIndex);
+	float* pfRotAngles = new float[m_iNumAngles];
+	int iHalfAngles = m_iNumAngles / 2;
+	//---------------------------------
+	for(int i=0; i<m_iNumAngles; i++)
+	{	pfRotAngles[i] = fTiltAxis + (i - iHalfAngles) * m_fAngStep;
+	}
+	return pfRotAngles;
+}

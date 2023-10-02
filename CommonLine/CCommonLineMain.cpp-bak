@@ -1,0 +1,142 @@
+#include "CCommonLineInc.h"
+#include <CuUtilFFT/GFFT1D.h>
+#include <Util/Util_LinEqs.h>
+#include <memory.h>
+#include <stdio.h>
+#include <math.h>
+
+using namespace CommonLine;
+
+CCommonLineMain::CCommonLineMain(void)
+{
+	m_pTomoStack = 0L;
+	m_pfRotAngles = 0L;
+	m_pfFitAngles = 0L;
+	m_iNumImgs = 0;
+}
+
+CCommonLineMain::~CCommonLineMain(void)
+{
+	if(m_pTomoStack != 0L) delete m_pTomoStack;
+	if(m_pfRotAngles != 0L) delete[] m_pfRotAngles;
+	if(m_pfFitAngles != 0L) delete[] m_pfFitAngles;
+}
+
+float CCommonLineMain::DoIt
+(	::MrcUtil::CTomoStack* pTomoStack,
+	::Correct::CStackShift* pStackShift	
+)
+{	bool bClean = true;
+	m_pStackShift = pStackShift;
+	m_iNumImgs = pTomoStack->m_iNumProjs;
+	//-----------------------------------
+	if(m_pTomoStack != 0L) delete m_pTomoStack;
+	Correct::CCorrTomoStack aCorrTomoStack;
+	m_pTomoStack = aCorrTomoStack.DoBin(pTomoStack, pStackShift, 1);
+	//--------------------------------------------------------------
+	CGenLines* pGenLines = new CGenLines;
+	CLineBuf* pLineBuf = pGenLines->DoIt(m_pTomoStack, 0.1f, 201);
+	//------------------------------------------------------------
+	int iIterations = 5;
+	CFindTiltAxis* pFindTiltAxis = new CFindTiltAxis;
+	float fScore = pFindTiltAxis->DoIt(pLineBuf, iIterations);
+	if(m_pfRotAngles != 0L) delete[] m_pfRotAngles;
+	m_pfRotAngles = pFindTiltAxis->GetRotAngles(bClean);
+	//--------------------------------------------------
+	mSmooth();
+	//--------
+	if(pLineBuf != 0L) delete pLineBuf;
+	if(pFindTiltAxis != 0L) delete pFindTiltAxis;
+	if(m_pTomoStack != 0L) delete m_pTomoStack;
+	m_pTomoStack = 0L;
+	//----------------
+	for(int i=0; i<m_iNumImgs; i++)
+	{	float fTiltAxis = pStackShift->GetTiltAxis(i);
+		fTiltAxis -= m_pfFitAngles[i];
+		pStackShift->SetTiltAxis(i, fTiltAxis);
+	}
+	return fScore;
+}
+
+void CCommonLineMain::mSmooth(void)
+{
+	if(m_pfFitAngles != 0L) delete[] m_pfFitAngles;
+	m_pfFitAngles = new float[m_iNumImgs];
+	int iBytes = sizeof(float) * m_iNumImgs;
+	memcpy(m_pfFitAngles, m_pfRotAngles, iBytes);
+	//-------------------------------------------
+	float* pfX = new float[m_iNumImgs];
+	for(int i=0; i<m_iNumImgs; i++)
+	{	float fTilt = m_pTomoStack->GetTiltA(i);
+		pfX[i] = fTilt * 3.14f / 180.0f;
+	}
+	//------------------
+	float afFit[4] = {0.0f};
+        bool bSuccess = mFit3
+	(  pfX, m_pfRotAngles, 0L, 
+	   m_iNumImgs, afFit
+	);
+	if(pfX != 0L) delete[] pfX;
+	if(!bSuccess) return;
+	//-------------------
+	for(int i=0; i<m_iNumImgs; i++)
+	{	float fTilt = m_pTomoStack->GetTiltA(i);
+		fTilt *= (3.14f / 180.0f);
+		m_pfFitAngles[i] = afFit[0] + afFit[1] * fTilt
+			+ afFit[2] * fTilt * fTilt
+			+ afFit[3] * fTilt * fTilt * fTilt;
+	}
+	//-------------------------------------------------
+	float fTol = 0.2f;
+	for(int i=0; i<m_iNumImgs; i++)
+	{	float fDif = m_pfRotAngles[i] - m_pfFitAngles[i];
+		if(fabs(fDif) > fTol) continue;
+		else m_pfFitAngles[i] = m_pfRotAngles[i];
+	}
+}
+
+bool CCommonLineMain::mFit3
+(       float* pfX,
+        float* pfRot,
+        float* pfW,
+        int iSize,
+        float afFit[4]
+)
+{       double adX[7] = {0};
+        for(int i=0; i<iSize; i++)
+        {       float fW = (pfW != 0L) ? pfW[i] : 1.0f;
+                adX[0] += fW;
+                double dX = 1.0;
+                for(int j=1; j<=6; j++)
+                {       dX *= pfX[i];
+                        adX[j] += (dX * fW);
+                }
+        }
+        for(int i=0; i<=6; i++)
+        {       adX[i] /= iSize;
+        }
+        float afCoeff[] =
+        {  (float)adX[0], (float)adX[1], (float)adX[2], (float)adX[3],
+           (float)adX[1], (float)adX[2], (float)adX[3], (float)adX[4],
+           (float)adX[2], (float)adX[3], (float)adX[4], (float)adX[5],
+           (float)adX[3], (float)adX[4], (float)adX[5], (float)adX[6]
+        };
+        //-----------------------------------------------------------
+        double dY = 0, dX1Y = 0, dX2Y = 0, dX3Y = 0;
+        for(int i=0; i<iSize; i++)
+        {       double dRot = pfRot[i];
+                float fW = (pfW != 0L) ? pfW[i] : 1.0f;
+                dY += (dRot * fW);
+                dX1Y += (dRot * pfX[i] * fW);
+                dX2Y += (dRot * pfX[i] * pfX[i] * fW);
+                dX3Y += (dRot * pfX[i] * pfX[i] * pfX[i] * fW);
+        }
+        afFit[0] = (float)(dY / iSize);
+        afFit[1] = (float)(dX1Y / iSize);
+        afFit[2] = (float)(dX2Y / iSize);
+        afFit[3] = (float)(dX3Y / iSize);
+        //-------------------------------
+        Util_LinEqs aLinEqs;
+        bool bSuccess = aLinEqs.DoIt(afCoeff, afFit, 4);
+        return bSuccess;
+}
