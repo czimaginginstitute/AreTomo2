@@ -1,11 +1,11 @@
+PRJHOME = $(shell pwd)
 CUDAHOME = $(HOME)/nvidia/cuda-12.1
 CUDAINC = $(CUDAHOME)/include
 CUDALIB = $(CUDAHOME)/lib64
-HOMEDIR = $(shell pwd)/../..
-PRJINC = $(HOMEDIR)/Projs/Include
-PRJLIB = $(HOMEDIR)/Projs/Lib
-CUPRJINC = $(HOMEDIR)/CuProjs/Include
-CUPRJLIB = $(HOMEDIR)/CuProjs/Lib
+PRJINC = $(PRJHOME)/Include
+PRJLIB = $(PRJHOME)/Lib
+CUPRJINC = $(PRJHOME)/CuInclude
+CUPRJLIB = $(PRJHOME)/CuLib
 #--------------------------------
 CUSRCS = ./Util/GAddImages.cu \
 	 ./Util/GFFTUtil2D.cu \
