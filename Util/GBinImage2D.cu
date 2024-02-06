@@ -1,6 +1,5 @@
 #include "CUtilInc.h"
 #include <Mrcfile/CMrcFileInc.h>
-#include <CuUtil/DeviceArray2D.h>
 #include <memory.h>
 #include <stdio.h>
 #include <math.h>

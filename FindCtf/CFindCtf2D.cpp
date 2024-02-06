@@ -46,7 +46,7 @@ void CFindCtf2D::Do2D(void)
 	CFindCtf1D::Do1D();
 	float fDfMean = (m_fDfMin + m_fDfMax) * 0.5f;
 	m_pFindDefocus2D->Setup3(fDfMean, 0.0f, 0.0f, m_fExtPhase);
-	m_pFindDefocus2D->DoIt(m_gfCtfSpect, m_fPhaseRange);
+	m_pFindDefocus2D->DoIt(m_gfCtfSpect, m_afPhaseRange);
 	mGetResults();
 }
 

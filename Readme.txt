@@ -325,3 +325,29 @@ AreTomo2 [Oct 02, 2023]
 -----------------------
 1. Renamed from AreTomo 1.4.3 to AreTomo2
 2. Change: FindCtf/CGenAvgSpectrum.cpp increases the overlapping from 30 to 50.
+
+AreTomo2 1.1.0 [01-28-2024]
+---------------------------
+1. FindCtf
+   1) CFindCtfMain: repeat estimation from scratch if the refinement yields a
+      score very close to 0.
+   2) CFindCtfBase: low-pass the full spectrum to enhance the Thon rings at
+      high resolution. Then truncate into half spectrum for CTF estimation.
+   3) In background removal, the box size is reduced to Y / 30 from Y / 15.
+2. StreAlign:
+   1) CStretchXcf: when measured shift exceeds 25% of the image size, reset
+      the shift to zero. A large shift will cause NaN error in tilt offset
+      estimation.
+3. Removed the dependency of libraries of CuUtil and CuUtilFFT.
+4. Added GFFT1D.cu and GFFT2D.cu in Util subfolder
+5. Remvoed CCufft2D.cpp. Its functions are provided in GFFT2D.
+6. Added LibSrc folder that contains Util and Mrcfile subfolders where the
+   source code of libutil.a and libmrcfile.a are provided. Run "make clean"
+   followed by "make all" first in Util and then Mrcfile to recompile the
+   libxxx.a files.
+7. Revised makefile11 and makefile.
+8. 02-04-2024:
+   1) CFindDefocus1D and CFindDefocus2D: ensure the search within the
+      given range.
+   2) CFindCtfBase::mRemoveBackground: removed thresholding and reduced
+      the B-factor from 10 to 5.

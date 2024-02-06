@@ -8,8 +8,8 @@ using namespace Correct;
 
 CCorrLinearInterp::CCorrLinearInterp(void)
 {
-	m_gForward2D = new CuUtilFFT::GFFT2D;
-	m_gInverse2D = new CuUtilFFT::GFFT2D;
+	m_gForward2D = new Util::GFFT2D;
+	m_gInverse2D = new Util::GFFT2D;
 }
 
 CCorrLinearInterp::~CCorrLinearInterp(void)

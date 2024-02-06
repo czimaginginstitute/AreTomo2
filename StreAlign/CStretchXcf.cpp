@@ -1,7 +1,7 @@
 #include "CStreAlignInc.h"
-#include <CuUtilFFT/GFFT2D.h>
 #include <memory.h>
 #include <stdio.h>
+#include <cuda_runtime.h>
 
 using namespace StreAlign;
 
@@ -20,7 +20,7 @@ CStretchXcf::~CStretchXcf(void)
 
 void CStretchXcf::Clean(void)
 {
-	m_cufft2D.DestroyPlan();
+	m_fft2D.DestroyPlan();
 	m_xcf2D.Clean();
 	//--------------
 	if(m_gCmpRef != 0L) cudaFree(m_gCmpRef);
@@ -35,22 +35,24 @@ void CStretchXcf::Setup
 	m_aiImgSize[0] = piImgSize[0];
 	m_aiImgSize[1] = piImgSize[1];
 	m_fBFactor = fBFactor;
-	//--------------------
+	//-----------------
 	m_aiPadSize[0] = (m_aiImgSize[0] / 2 + 1) * 2;
 	m_aiPadSize[1] = m_aiImgSize[1];
 	m_aiCmpSize[0] = m_aiPadSize[0] / 2;
 	m_aiCmpSize[1] = m_aiPadSize[1];
-	//------------------------------
+	//-----------------
 	int iCmpSize = m_aiCmpSize[0] * m_aiCmpSize[1];
 	size_t tBytes = sizeof(cufftComplex) * iCmpSize * 3;
 	cudaMalloc(&m_gCmpRef, tBytes);
-	//-----------------------------
+	//-----------------
 	m_gCmp = m_gCmpRef + iCmpSize;
 	m_gCmpBuf = m_gCmp + iCmpSize;
-	//----------------------------
+	//-----------------
 	bool bPadded = true;
 	m_xcf2D.Setup(m_aiCmpSize);
-	m_cufft2D.CreateForwardPlan(m_aiPadSize, bPadded);
+	//-----------------
+	bool bForward = true;
+	m_fft2D.CreatePlan(m_aiImgSize, bForward);
 }
 
 void CStretchXcf::DoIt
@@ -62,7 +64,7 @@ void CStretchXcf::DoIt
 )
 {	mPadImage(pfRefImg, (float*)m_gCmpRef);
 	mNormalize((float*)m_gCmpRef);
-	//----------------------------
+	//-----------------
 	mPadImage(pfImg, (float*)m_gCmpBuf);
 	bool bPadded = true;
 	bool bRandomFill = true;
@@ -74,13 +76,22 @@ void CStretchXcf::DoIt
 	  fTiltAxis, (float*)m_gCmp, bRandomFill
 	);
 	mNormalize((float*)m_gCmp);
-	//-------------------------
+	//-----------------
 	mRoundEdge();
 	mForwardFFT();
 	m_xcf2D.DoIt(m_gCmpRef, m_gCmp, m_fBFactor);
-	//------------------------------------------
+	//-----------------
 	float fPeak = m_xcf2D.SearchPeak();
 	m_xcf2D.GetShift(m_afShift, 1.0f);
+	//------------------------------------------------------
+	// Prevent absurd large shift from causing trouble to
+	// downstream finding tilt angle offset.
+	//------------------------------------------------------
+	if(fabs(m_afShift[0]) > (0.25 * m_aiImgSize[0]) ||
+	   fabs(m_afShift[1]) > (0.25 * m_aiImgSize[1]))
+	{	m_afShift[0] = 0.0f;
+		m_afShift[1] = 0.0f;
+	}
 }
 
 void CStretchXcf::GetShift(float fFactX, float fFactY, float* pfShift)
@@ -132,6 +143,6 @@ void CStretchXcf::mRoundEdge(void)
 void CStretchXcf::mForwardFFT(void)
 {
 	bool bNorm = true;
-	m_cufft2D.Forward((float*)m_gCmpRef, bNorm);
-	m_cufft2D.Forward((float*)m_gCmp, bNorm);
+	m_fft2D.Forward((float*)m_gCmpRef, bNorm);
+	m_fft2D.Forward((float*)m_gCmp, bNorm);
 }

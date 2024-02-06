@@ -4,7 +4,6 @@
 #include "../Correct/CCorrectInc.h"
 #include <Util/Util_Thread.h>
 #include <Util/Util_Powell.h>
-#include <CuUtil/DeviceArray2D.h>
 #include <cufft.h>
 
 namespace FindTilts

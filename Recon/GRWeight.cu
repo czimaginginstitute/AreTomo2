@@ -47,8 +47,8 @@ void GRWeight::SetSize(int iPadProjX, int iNumProjs)
 	m_iCmpSizeX = iFFTSize / 2 + 1;
 	m_iNumProjs = iNumProjs;
 	//----------------------
-	m_pGForward = new CuUtilFFT::GFFT1D;
-	m_pGInverse = new CuUtilFFT::GFFT1D;
+	m_pGForward = new Util::GFFT1D;
+	m_pGInverse = new Util::GFFT1D;
 	bool bForward = true;
 	m_pGForward->CreatePlan(iFFTSize, m_iNumProjs, bForward);
 	m_pGInverse->CreatePlan(iFFTSize, m_iNumProjs, !bForward);

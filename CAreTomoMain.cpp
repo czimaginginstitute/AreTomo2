@@ -22,8 +22,8 @@ int main(int argc, char* argv[])
 	if(argc == 2)
 	{	if(strcasecmp(argv[1], "--version") == 0 ||
 		   strcasecmp(argv[1], "-v") == 0)
-		{	printf("AreTomo2 version 1.0.0\n"
-			       "Built on Oct 02 2023\n");
+		{	printf("AreTomo2 version 1.1.0\n"
+			       "Built on Feb 04 2024\n");
 		}
 		else if(strcasecmp(argv[1], "--help") == 0)
 		{	printf("\nUsage: AreTomo2 Tags\n");

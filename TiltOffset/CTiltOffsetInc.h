@@ -4,7 +4,8 @@
 #include "../Correct/CCorrectInc.h"
 #include "../StreAlign/CStreAlignInc.h"
 #include <Util/Util_Thread.h>
-#include <CuUtilFFT/GFFT2D.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 namespace TiltOffset
 {
@@ -77,7 +78,7 @@ private:
 	void mGetGProj(int iProj, float* gfPadProj);
 	MrcUtil::CTomoStack* m_pTomoStack;
 	MrcUtil::CAlignParam* m_pAlignParam;
-	CuUtilFFT::GFFT2D m_fft2D;
+	Util::GFFT2D m_fft2D;
 	float m_fBFactor;
 	int m_iXcfBin;
 	int m_aiPadSize[2];

@@ -1,7 +1,6 @@
 #pragma once
 #include "../MrcUtil/CMrcUtilInc.h"
 #include "../ProjAlign/CProjAlignInc.h"
-#include <CuUtilFFT/GFFT2D.h>
 #include <Util/Util_Thread.h>
 #include <cuda.h>
 #include <cufft.h>
@@ -97,7 +96,7 @@ public:
 	);
 	int m_aiXcfSize[2];
 private:
-	CuUtilFFT::GFFT2D m_fft2D;
+	Util::GFFT2D m_fft2D;
 };
 
 class GPartialCopy
@@ -156,7 +155,7 @@ private:
 	int m_aiPatSize[2];
 	int m_aiPatPad[2]; // patch padded size
 	GGenXcfImage m_GGenXcfImage;
-	CuUtilFFT::GFFT2D m_Gfft2D;
+	Util::GFFT2D m_Gfft2D;
 	float* m_gfPatImg1;
 	float* m_gfPatImg2;
 	float* m_gfBuf;

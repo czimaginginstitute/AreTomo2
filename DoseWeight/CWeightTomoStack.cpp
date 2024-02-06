@@ -1,8 +1,8 @@
 #include "CDoseWeightInc.h"
 #include "../CInput.h"
-#include <CuUtilFFT/GFFT2D.h>
 #include <memory.h>
 #include <stdio.h>
+#include <cuda_runtime.h>
 
 using namespace DoseWeight;
 
@@ -66,17 +66,16 @@ void CWeightTomoStack::ThreadMain(void)
 {
 	this->Clean();
 	cudaSetDevice(m_iGpuID);
-	//----------------------
+	//-----------------
 	m_aiCmpSize[0] = s_pTomoStack->m_aiStkSize[0] / 2 + 1;
 	m_aiCmpSize[1] = s_pTomoStack->m_aiStkSize[1];
-	//--------------------------------------------
+	//-----------------
 	int iCmpSize = m_aiCmpSize[0] * m_aiCmpSize[1];
 	cudaMalloc(&m_gCmpImg, sizeof(cufftComplex) * iCmpSize);
-	//------------------------------------------------------
-	bool bPad = true;
-	m_aForwardFFT.CreateForwardPlan(s_pTomoStack->m_aiStkSize, !bPad);
-	m_aInverseFFT.CreateInversePlan(s_pTomoStack->m_aiStkSize, !bPad);	
-	//----------------------------------------------------------------
+	//-----------------
+	m_aForwardFFT.CreatePlan(s_pTomoStack->m_aiStkSize, true);
+	m_aInverseFFT.CreatePlan(s_pTomoStack->m_aiStkSize, false);	
+	//-----------------
 	MrcUtil::CTiltDoses* pTiltDoses = MrcUtil::CTiltDoses::GetInstance();
 	if(pTiltDoses->m_bDoseWeight)
 	{	CInput* pInput = CInput::GetInstance();
@@ -91,7 +90,7 @@ void CWeightTomoStack::ThreadMain(void)
 		mCorrectProj(iProj);
 		printf("  image %4d has been processed.\n", iProj);
 	}
-	//-------------------------------------------------------------
+	//-----------------
 	m_aForwardFFT.DestroyPlan();
 	m_aInverseFFT.DestroyPlan();
 	this->Clean();

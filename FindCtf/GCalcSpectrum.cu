@@ -1,5 +1,4 @@
 #include "CFindCtfInc.h"
-#include <CuUtilFFT/GFFT2D.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 
@@ -42,13 +41,15 @@ static __global__ void mGLogrithm
 
 //------------------------------------------------------------------------------
 // 1. DC of gfHalfSpect is already at (0, iCmpY / 2)
-// 2. DC of gfFullSpect will be at (iCmpX / 2, iCmpY / 2)
+// 2. DC of gfFullSpect will be at (iImgX / 2, iCmpY / 2), 
+//    iImgX = (iCmpX - 1) * 2
 //------------------------------------------------------------------------------
 static __global__ void mGenFullSpect
 (	float* gfHalfSpect,
 	float* gfFullSpect,
 	int iHalfX,
-	int iCmpY
+	int iCmpY,
+	int iFullSizeX
 )
 {	int xSrc, ySrc, xDst, yDst;
 	yDst = blockIdx.y * blockDim.y + threadIdx.y;
@@ -63,7 +64,7 @@ static __global__ void mGenFullSpect
 	{	xSrc = -xDst;
 		ySrc = iCmpY - yDst;
 	}
-	gfFullSpect[yDst * gridDim.x + blockIdx.x] = 
+	gfFullSpect[yDst * iFullSizeX + blockIdx.x] = 
 	   gfHalfSpect[ySrc * (iHalfX + 1) + xSrc];
 }
 
@@ -96,7 +97,7 @@ void GCalcSpectrum::DoPad
 	int* piPadSize,
 	bool bLog
 )
-{	CuUtilFFT::GFFT2D aGFFT2D;
+{	Util::GFFT2D aGFFT2D;
 	int aiFFTSize[] = {0, piPadSize[1]};
 	aiFFTSize[0] = (piPadSize[0] / 2 - 1) * 2;
 	aGFFT2D.CreatePlan(aiFFTSize, true);
@@ -120,15 +121,17 @@ void GCalcSpectrum::Logrithm
 void GCalcSpectrum::GenFullSpect
 (	float* gfHalfSpect, 
 	int* piCmpSize,
-        float* gfFullSpect
+        float* gfFullSpect,
+	bool bFullPadded
 )
 {	int iHalfX = piCmpSize[0] - 1;
 	int iNx = iHalfX * 2;
+	int iFullSizeX = bFullPadded ? iNx + 2 : iNx;
 	//-------------------
 	dim3 aBlockDim(1, 512);
 	dim3 aGridDim(iNx, 1);
 	aGridDim.y = (piCmpSize[1] + aBlockDim.y - 1) / aBlockDim.y;
 	//----------------------------------------------------------
 	mGenFullSpect<<<aGridDim, aBlockDim>>>(gfHalfSpect,
-	   gfFullSpect, iHalfX, piCmpSize[1]);
+	   gfFullSpect, iHalfX, piCmpSize[1], iFullSizeX);
 }	

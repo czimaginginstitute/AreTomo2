@@ -203,7 +203,37 @@ public:
 	void GenFullSpect
 	( float* gfHalfSpect,
 	  int* piCmpSize,
-	  float* gfFullSpect
+	  float* gfFullSpect,
+	  bool bFullPadded
+	);
+};
+
+class GLowpass2D
+{
+public:
+	GLowpass2D(void);
+	~GLowpass2D(void);
+	void DoBFactor
+	( cufftComplex* gInCmp,
+	  cufftComplex* gOutCmp,
+	  int* piCmpSize,
+	  float fBFactor
+	);
+	cufftComplex* DoBFactor
+	( cufftComplex* gCmp,
+	  int* piCmpSize,
+	  float fBFactor
+	);
+	void DoCutoff
+	( cufftComplex* gInCmp,
+	  cufftComplex* gOutCmp,
+	  int* piCmpSize,
+	  float fCutoff
+	);
+	cufftComplex* DoCutoff
+	( cufftComplex* gCmp,
+	  int* piCmpSize,
+	  float fCutoff
 	);
 };
 
@@ -446,7 +476,10 @@ public:
 	( float fDfMean, float fAstRatio, 
 	  float fAstAngle, float fExtPhase
 	);
-	void DoIt(float* gfSpect, float fPhaseRange);
+	void DoIt
+	( float* gfSpect, 
+	  float* pfPhaseRange
+	);
 	void Refine
 	( float* gfSpect, float fDfMeanRange,
 	  float fAstRange, float fAngRange,
@@ -459,25 +492,43 @@ public:
 	float GetExtPhase(void); // degree
 	float GetScore(void);
 private:
-	float mIterate
-	( float afAstRanges[2], float fDfMeanRange,
-	  float fPhaseRange, int iIterations
+	void mIterate(void);
+	void mDoIt
+	( float* pfDfRange,
+	  float* pfAstRange,
+	  float* pfAngRange,
+	  float* pfPhaseRange
 	);
-	float mGridSearch(float fRatRange, float fAngRange);
-	float mRefinePhase(float fPhaseRange);
-	float mRefineDfMean(float fRatRange);
+	float mGridSearch
+	( float* pfAstRange, 
+	  float* pfAngRange
+	);
+	float mRefineDfMean(float* pfDfRange);
+	float mRefinePhase(float* pfPhaseRange);
+	//-----------------
 	float mCorrelate(float fAzimu, float fAstig, float fExtPhase);
+	void mGetRange
+	( float fCentVal, float fRange, 
+	  float* pfMinMax, float* pfRange
+	);
+	//-----------------
 	float* m_gfSpect;
 	float* m_gfCtf2D;
 	int m_aiCmpSize[2];
 	GCC2D* m_pGCC2D;
 	GCalcCTF2D m_aGCalcCtf2D;
 	CCtfParam* m_pCtfParam;
+	//-----------------
 	float m_fDfMean;
 	float m_fAstRatio;
 	float m_fAstAngle;
 	float m_fExtPhase;
 	float m_fCCMax;
+	//-----------------
+	float m_afDfRange[2];
+	float m_afAstRange[2];
+	float m_afAngRange[2];
+	float m_afPhaseRange[2];
 };
 
 class CFindCtfBase
@@ -502,7 +553,9 @@ public:
 	float m_fScore;
 protected:
 	void mRemoveBackground(void);
+	void mLowpass(void);
 	void mInitPointers(void);
+	//-----------------
 	CCtfTheory* m_pCtfTheory;
 	CGenAvgSpectrum* m_pGenAvgSpect;
 	float* m_gfFullSpect;
@@ -511,7 +564,7 @@ protected:
 	int m_aiCmpSize[2];
 	int m_aiImgSize[2];
 	float m_afResRange[2];
-	float m_fPhaseRange; // for searching extra phase in degree
+	float m_afPhaseRange[2]; // for searching extra phase in degree
 };
 
 class CFindCtf1D : public CFindCtfBase
@@ -591,7 +644,7 @@ private:
 	void mDoZeroTilt(void);
 	void mDo2D(void);
 	void mSaveSpectFile(void);
-	void mGetResults(int iTilt);
+	float mGetResults(int iTilt);
 	char* mGenSpectFileName(void);
 	float** m_ppfHalfSpects;
 	CFindCtf2D* m_pFindCtf2D;

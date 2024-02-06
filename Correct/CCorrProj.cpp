@@ -3,6 +3,7 @@
 #include "../Util/CUtilInc.h"
 #include <memory.h>
 #include <stdio.h>
+#include <cuda_runtime.h>
 
 using namespace Correct;
 

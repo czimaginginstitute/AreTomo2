@@ -39,8 +39,8 @@ private:
 	void mDoseWeight(int iProj);
 	cufftComplex* m_gCmpImg;
 	int m_aiCmpSize[2];
-	Util::CCufft2D m_aForwardFFT;
-	Util::CCufft2D m_aInverseFFT;
+	Util::GFFT2D m_aForwardFFT;
+	Util::GFFT2D m_aInverseFFT;
 	Util::CNextItem* m_pNextItem;
 	GDoseWeightImage* m_pGDoseWeightImg;
 	int m_iGpuID;

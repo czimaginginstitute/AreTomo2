@@ -1,9 +1,10 @@
 #pragma once
 #include <Util/Util_Thread.h>
 #include <Util/Util_Powell.h>
-#include <CuUtil/DeviceArray2D.h>
-#include <CuUtilFFT/GFFT1D.h>
+#include <cuda.h>
 #include <cufft.h>
+#include <cuda_runtime.h>
+#include "../Util/CUtilInc.h"
 #include "../MrcUtil/CMrcUtilInc.h"
 #include "../Correct/CCorrectInc.h"
 
@@ -256,7 +257,7 @@ private:
 	//-----------
 	GCalcCommonRegion m_calcComRegion;
 	GGenCommonLine m_genComLine;
-	CuUtilFFT::GFFT1D m_fft1D;
+	Util::GFFT1D m_fft1D;
 	//------------------------
 	Util::CNextItem* m_pNextItem;
 };

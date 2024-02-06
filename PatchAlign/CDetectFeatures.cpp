@@ -81,38 +81,40 @@ void CDetectFeatures::DoIt(float* pfImg)
 {
 	CInput* pInput = CInput::GetInstance();
 	cudaSetDevice(pInput->m_piGpuIDs[0]);
-	//-----------------------------------
+	//-----------------
 	Util::CPad2D aPad2D;
 	float* gfPadImg = aPad2D.GPad(pfImg, m_aiImgSize);
-	//------------------------------------------------
+	//-----------------
 	int aiOutCmpSize[] = {m_aiBinnedSize[0] / 2 + 1, m_aiBinnedSize[1]};
 	int iBytes = sizeof(cufftComplex) * aiOutCmpSize[0] * aiOutCmpSize[1];
 	cufftComplex* gCmpCropped = 0L;
 	cudaMalloc(&gCmpCropped, iBytes);
-	//-------------------------------	
-	Util::CCufft2D aCufft2D;
-	aCufft2D.CreateForwardPlan(m_aiImgSize, false);
-	aCufft2D.Forward(gfPadImg, true);
+	//-----------------	
+	Util::GFFT2D fft2D;
+	bool bForward = true;
+	fft2D.CreatePlan(m_aiImgSize, bForward);
+	fft2D.Forward(gfPadImg, true);
 	cufftComplex* gCmpImg = reinterpret_cast<cufftComplex*>(gfPadImg);
 	int aiInCmpSize[] = {m_aiImgSize[0] / 2 + 1, m_aiImgSize[1]};
-	//-----------------------------------------------------------	
+	//-----------------
 	Util::GFourierCrop2D aGFourierCrop2D;
 	aGFourierCrop2D.DoIt(gCmpImg, aiInCmpSize, true,
 	   gCmpCropped, aiOutCmpSize);
 	cudaFree(gfPadImg);
 	//-----------------
-	aCufft2D.CreateInversePlan(aiOutCmpSize, true);
-	aCufft2D.Inverse(gCmpCropped);
+	int aiOutImgSize[] = {(aiOutCmpSize[0] - 1) * 2, aiOutCmpSize[1]};
+	fft2D.CreatePlan(aiOutImgSize, !bForward);
+	fft2D.Inverse(gCmpCropped);
 	float* gfBinnedImg = reinterpret_cast<float*>(gCmpCropped);
-	//---------------------------------------------------------
+	//-----------------
 	int aiOutPadSize[] = { aiOutCmpSize[0] * 2, aiOutCmpSize[1] };
 	Util::GFindMinMax2D gFindMinMax2D;
 	gFindMinMax2D.SetSize(aiOutPadSize, true);
 	float fMin = gFindMinMax2D.DoMin(gfBinnedImg, true, 0);
-	//-----------------------------------------------------
+	//-----------------
 	Util::GPositivity2D gPositivity;
 	gPositivity.AddVal(gfBinnedImg, aiOutPadSize, 1.0f - fMin);
-	//---------------------------------------------------------
+	//-----------------
 	int aiWinSize[] = {5, 5};
 	GNormByStd2D gNormByStd;
 	gNormByStd.DoIt(gfBinnedImg, aiOutPadSize, true, aiWinSize);	

@@ -1,7 +1,6 @@
 #include "CCommonLineInc.h"
 #include "../CInput.h"
 #include "../Util/CUtilInc.h"
-#include <CuUtilFFT/GFFT1D.h>
 #include <memory.h>
 #include <stdio.h>
 
