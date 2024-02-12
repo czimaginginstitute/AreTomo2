@@ -109,7 +109,7 @@ void CDarkFrames::GenImodExcludeList(char* pcLine, int iSize)
 	char acBuf[16] = {'\0'};
 	int iLast = m_iNumDarks - 1;
 	for(int i=0; i<iLast; i++)
-	{	sprintf(acBuf, "%d, ", m_piSecIdxs[i]+1); 
+	{	sprintf(acBuf, "%d,", m_piSecIdxs[i]+1); 
 		strcat(pcLine, acBuf); // Relion 1-based index
 	}
 	sprintf(acBuf, "%d", m_piSecIdxs[iLast]+1);

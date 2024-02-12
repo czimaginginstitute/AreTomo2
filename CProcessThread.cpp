@@ -65,7 +65,8 @@ void CProcessThread::ThreadMain(void)
 	   pInput->m_iNumGpus);
 	mSetPositivity();	
 	//---------------
-	mFindCtf();
+	if (pInput->m_iOutImod == 0) {
+		mFindCtf(); }
 	mAlign();
 	mDoseWeight();
 	mSetPositivity();

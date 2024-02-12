@@ -1,5 +1,6 @@
 #include "CInput.h"
 #include "CProcessThread.h"
+#include "CPreProcessThread.h"
 #include "Massnorm/CMassNormInc.h"
 #include <Mrcfile/CMrcFileInc.h>
 #include <Util/Util_Time.h>
@@ -43,6 +44,12 @@ int main(int argc, char* argv[])
 	Util_Time aTimer;
 	aTimer.Measure();
 	//---------------
+	if(!mLoadAlignment()) return 2;
+	if(!mLoadTomoStack()) return 3;
+	if (pInput->m_iOutImod > 0) {
+		CPreProcessThread aPreProcessThread;
+			aPreProcessThread.DoIt(s_pTomoStack); 
+        	aPreProcessThread.WaitForExit(36000000.0f); }
 	if(!mLoadAlignment()) return 2;
 	if(!mLoadTomoStack()) return 3;
 	mRemoveDarkFrames();
