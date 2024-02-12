@@ -54,7 +54,7 @@ bool CPreProcessThread::DoIt(MrcUtil::CTomoStack* pTomoStack)
 
 void CPreProcessThread::ThreadMain(void)
 {
-	printf("\nProcess thread has been started.\n\n");
+	printf("\nCTF PreProcess thread has been started.\n\n");
 	CInput* pInput = CInput::GetInstance();
 	cudaSetDevice(pInput->m_piGpuIDs[0]);
 	//-----------------------------------

@@ -151,8 +151,8 @@ SRCS = ./Util/CNextItem.cpp \
 	./PatchAlign/CPatchAlignMain.cpp \
 	./CInput.cpp \
 	./CFFTBuffer.cpp \
-	./CProcessThread.cpp \
 	./CPreProcessThread.cpp \
+	./CProcessThread.cpp \
 	./CAreTomoMain.cpp \
 	$(CUCPPS)
 OBJS = $(patsubst %.cpp, %.o, $(SRCS))

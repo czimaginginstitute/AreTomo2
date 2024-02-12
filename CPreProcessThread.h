@@ -13,6 +13,7 @@ public:
 	bool DoIt(MrcUtil::CTomoStack* pTomoStack);
 	void ThreadMain(void);
 private:
+	void mLoadAlignment(void);
 	void mFindCtf(void);
 	void mSetPositivity(void);
 	//--------------------
