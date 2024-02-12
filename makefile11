@@ -152,7 +152,7 @@ SRCS = ./Util/CNextItem.cpp \
 	./CInput.cpp \
 	./CFFTBuffer.cpp \
 	./CProcessThread.cpp \
-	./CPreProcessThread.cpp \	
+	./CPreProcessThread.cpp \
 	./CAreTomoMain.cpp \
 	$(CUCPPS)
 OBJS = $(patsubst %.cpp, %.o, $(SRCS))
