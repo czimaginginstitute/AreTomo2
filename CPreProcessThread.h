@@ -8,8 +8,8 @@
 class CPreProcessThread : public Util_Thread
 {
 public:
-	CProcessThread(void);
-	~CProcessThread(void);
+	CPreProcessThread(void);
+	~CPreProcessThread(void);
 	bool DoIt(MrcUtil::CTomoStack* pTomoStack);
 	void ThreadMain(void);
 private:
