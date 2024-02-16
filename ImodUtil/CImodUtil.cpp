@@ -41,7 +41,8 @@ void CImodUtil::CreateFolder(void)
 {
 	CInput* pInput = CInput::GetInstance();
 	if(pInput->m_iOutImod == 0) return;
-	//---------------------------------
+	if(pInput->m_iAlign == 0) return;
+	//-----------------
 	Util::CFileName aInFileName(pInput->m_acInMrcFile);
 	Util::CFileName aOutFileName(pInput->m_acOutMrcFile);
 	char acPrefix[256] = {'\0'};
@@ -57,29 +58,28 @@ void CImodUtil::CreateFolder(void)
         if (stat(m_acOutFolder, &st) == -1)
         {       mkdir(m_acOutFolder, 0700);
         }	
-	//---------------------------------
+	//-----------------
 	strcpy(m_acTltFile, acPrefix);
 	strcat(m_acTltFile, "_st.tlt");
-	//--------------------------
+	//-----------------
 	strcpy(m_acCsvFile, acPrefix);
-	if(pInput->m_iOutImod == 1) strcat(m_acCsvFile, "_order_list.csv");
-	else strcat(m_acCsvFile, "_st_order_list.csv");
-	//---------------------------------------------
+	 strcat(m_acCsvFile, "_st_order_list.csv");
+	//-----------------
 	strcpy(m_acXfFile, acPrefix);
 	strcat(m_acXfFile, "_st.xf");
-	//------------------------
+	//-----------------
 	strcpy(m_acAliFile, acPrefix);
 	strcat(m_acAliFile, "_st.ali");
-	//--------------------------
+	//-----------------
 	strcpy(m_acXtiltFile, acPrefix);
 	strcat(m_acXtiltFile, "_st.xtilt");
-	//------------------------------
+	//-----------------
 	strcpy(m_acRecFile, acPrefix);
 	strcat(m_acRecFile, "_st.rec");
-	//-----------------------------
+	//-----------------
 	strcpy(m_acCtfFile, acPrefix);
 	strcat(m_acCtfFile, "_ctf.txt");
-	//------------------------------
+	//-----------------
 	if(pInput->m_iOutImod == 1) 
 	{	char acBuf[25] = {'\0'};	
 		char* pcRes = realpath(pInput->m_acInMrcFile, acBuf);
@@ -99,31 +99,30 @@ void CImodUtil::SaveTiltSeries
 )
 {	CInput* pInput = CInput::GetInstance();
 	if(pInput->m_iOutImod == 0) return;
-	//---------------------------------
+	//-----------------
 	m_pTomoStack = pTomoStack; // can be NULL
 	m_pGlobalParam = pAlignParam;
 	m_fPixelSize = fPixelSize;
 	m_fTiltAxis = m_pGlobalParam->GetTiltAxis(
            m_pGlobalParam->m_iNumFrames / 2);
-	//----------------------------------
+	//-----------------
 	char acFile[256] = {'\0'};
 	mCreateFileName(m_acTltFile, acFile);
 	CSaveTilts aSaveTilts;
 	aSaveTilts.DoIt(pAlignParam, acFile);
-	//-----------------------------------
+	//-----------------
 	mCreateFileName(m_acCsvFile, acFile);
-	MrcUtil::CAcqSequence* pAcqSequence =
-	   MrcUtil::CAcqSequence::GetInstance();
-	pAcqSequence->SaveCsv(acFile, pInput->m_iOutImod);
-	//------------------------------------------------
+	CSaveCsv saveCsv;
+	saveCsv.DoIt(acFile);
+	//-----------------
 	mCreateFileName(m_acXfFile, acFile);
 	CSaveXF aSaveXF;
 	aSaveXF.DoIt(pAlignParam, acFile);
-	//--------------------------------	
+	//-----------------	
 	mCreateFileName(m_acXtiltFile, acFile);
 	CSaveXtilts aSaveXtilts;
 	aSaveXtilts.DoIt(pAlignParam, acFile);
-	//------------------------------------
+	//-----------------
 	mSaveTiltSeries();
 	mSaveNewstComFile();
 	mSaveTiltComFile();
@@ -135,14 +134,14 @@ void CImodUtil::mSaveTiltSeries(void)
 	CInput* pInput = CInput::GetInstance();
 	if(pInput->m_iOutImod != 2 && pInput->m_iOutImod != 3) return;
 	if(m_pTomoStack == 0L) return;
-	//----------------------------
+	//-----------------
 	char acFile[256];
 	mCreateFileName(m_acInMrcFile, acFile);
-	//----------------------------------
+	//-----------------
 	MrcUtil::CSaveStack aSaveStack;
 	bool bOpen = aSaveStack.OpenFile(acFile);
 	if(!bOpen) return;
-	//----------------
+	//-----------------
 	printf("Save tilt series, please wait .....\n");
 	bool bVolume = true;
 	aSaveStack.DoIt(m_pTomoStack, m_pGlobalParam, 
@@ -156,7 +155,7 @@ void CImodUtil::mSaveNewstComFile(void)
 	mCreateFileName("newst.com", acComFile);
 	FILE* pFile = fopen(acComFile, "wt");
 	if(pFile == 0L) return;
-	//---------------------
+	//-----------------
 	fprintf(pFile, "$newstack -StandardInput\n");
 	fprintf(pFile, "InputFile	%s\n", m_acInMrcFile);
 	fprintf(pFile, "OutputFile	%s\n", m_acAliFile);
@@ -169,7 +168,7 @@ void CImodUtil::mSaveNewstComFile(void)
 	fprintf(pFile, "BinByFactor     1\n");
 	fprintf(pFile, "#GradientFile   hc20211206_804.maggrad\n");
 	fprintf(pFile, "$if (-e ./savework) ./savework");
-	//-----------------------------------------------
+	//-----------------
 	fclose(pFile);	
 }
 
@@ -179,7 +178,7 @@ void CImodUtil::mSaveTiltComFile(void)
 	mCreateFileName("tilt.com", acComFile);
 	FILE* pFile = fopen(acComFile, "wt");
 	if(pFile == 0L) return;
-	//---------------------
+	//-----------------
 	MrcUtil::CDarkFrames* pDarkFrames = 0L;
 	pDarkFrames = MrcUtil::CDarkFrames::GetInstance();
 	int* piRawSize = pDarkFrames->m_aiRawStkSize;
@@ -187,7 +186,7 @@ void CImodUtil::mSaveTiltComFile(void)
 	Correct::CCorrectUtil::CalcAlignedSize(piRawSize, 
 	   m_fTiltAxis, aiAlnSize);
 	CInput* pInput = CInput::GetInstance();
-	//-----------------------------------------------
+	//-----------------
 	fprintf(pFile, "$tilt -StandardInput\n");
 	fprintf(pFile, "InputProjections %s\n", m_acAliFile);
 	fprintf(pFile, "OutputFile %s\n", m_acRecFile);
@@ -209,14 +208,14 @@ void CImodUtil::mSaveTiltComFile(void)
 	fprintf(pFile, "XTILTFILE %s\n", m_acXtiltFile);
 	fprintf(pFile, "OFFSET 0.0\n");
 	fprintf(pFile, "SHIFT 0.0 0.0\n");
-	//--------------------------------
+	//-----------------
 	if(pInput->m_iOutImod == 1 && pDarkFrames->m_iNumDarks > 0)
 	{	char acExclude[128] = {'\0'};
 		pDarkFrames->GenImodExcludeList(acExclude, 128);
 		fprintf(pFile, "%s\n", acExclude);
 	}
 	fprintf(pFile, "$if (-e ./savework) ./savework");
-	//-----------------------------------------------
+	//-----------------
 	fclose(pFile);	
 }
 

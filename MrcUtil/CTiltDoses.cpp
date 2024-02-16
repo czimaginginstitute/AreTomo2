@@ -44,21 +44,19 @@ void CTiltDoses::Clean(void)
 // This class stores the accumulated dose on each tilt image after
 // dark images are removed.
 //-------------------------------------------------------------------
-void CTiltDoses::Setup(CAlignParam* pAlignParam)
+void CTiltDoses::Setup(CTomoStack* pTomoStack)
 {
 	this->Clean();
 	m_bDoseWeight = false;
 	CInput* pInput = CInput::GetInstance();
 	if(pInput->m_fImgDose <= 0) return;
-	CAcqSequence* pAcqSequence = CAcqSequence::GetInstance();
-	if(!pAcqSequence->hasSequence()) return;
-	//--------------------------------------
+	//-----------------
 	m_bDoseWeight = true;
-	m_iNumImgs = pAlignParam->m_iNumFrames;
+	m_iNumImgs = pTomoStack->m_aiStkSize[2];
 	m_pfDoses = new float[m_iNumImgs];
+	//-----------------
 	for(int i=0; i<m_iNumImgs; i++)
-	{	int iSecIdx = pAlignParam->GetSecIndex(i);
-		int iAcqIdx = pAcqSequence->GetAcqIndexFromSection(iSecIdx);
+	{	int iAcqIdx = pTomoStack->m_piAcqIdxs[i];
 		m_pfDoses[i] = iAcqIdx * pInput->m_fImgDose;
 	}
 }

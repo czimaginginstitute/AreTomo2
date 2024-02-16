@@ -351,3 +351,21 @@ AreTomo2 1.1.0 [01-28-2024]
       given range.
    2) CFindCtfBase::mRemoveBackground: removed thresholding and reduced
       the B-factor from 10 to 5.
+
+AreTomo2 1.1.1 [02-15-2024]
+---------------------------
+1. MrcUtil
+   1) CTomoStack tracks the order of tilt images in input MRC file (secIdx)
+   the order of acquisition (acqIdx), and stores tilt angles.
+   2) CDarkFrames tracks secIdx, acqIdx, tilt angles for all tilt images
+   including dark images.
+   3) CLoadMain loads tilt series from MRC file, CAlignParam from .aln
+   file, tilt angles and acqIdx from -angFile.
+2. ImodUtil
+   1) CSaveCsv saves sorted acqIdx and tilt angles and has removed
+   white spaces between these two columns
+   2) CImodUtil does not differentiate the csv name for -OutImod 1 or
+   -OutImod 2 and 3.
+3. CProcessThread calls CTF estimation before removing dark images if
+   -OutMod 1 is used or after if -OutImod 2 or 3 is used.
+

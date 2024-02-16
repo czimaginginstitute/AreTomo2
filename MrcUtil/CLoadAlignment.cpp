@@ -156,53 +156,6 @@ void CLoadAlignment::mDoTiltRange(void)
 	m_bFromTiltRange = true;
 }
 
-bool CLoadAlignment::mDoAngFile(void)
-{
-	//-----------------------------------------------------------------
-	// AngFile is a two-column text file where the 1st column is the
-	// tilt angle listed in the same order as the tilt images in the
-	// input MRC file. The 2nd column is optional and oontains the
-	// 1-based index indiccating the acquisition order of the tilt
-	// images. The 2nd column is required for dose weighting and
-	// generation of csv file for Relion 4.
-	//----------------------------------------------------------------- 
-	CInput* pInput = CInput::GetInstance();
-	CAcqSequence* pAcqSequence = CAcqSequence::GetInstance();
-	pAcqSequence->ReadAngFile(pInput->m_acAngFile);
-	if(pAcqSequence->m_iNumSections <= 0) return true;
-	//------------------------------------------------------------------
-	// NOTE: number of sections in MRC header must match that in the
-	// angle file passed at the command line. If not quit.
-	//------------------------------------------------------------------
-	if(m_iNumSections != pAcqSequence->m_iNumSections)
-	{	char acErr[256] = {'\0'};
-		sprintf(acErr, "MRC file: %d images, angle file: %d images");
-		fprintf(stderr, "Error: mismatch, %s.\n\n", acErr);
-		return false;
-	}
-	//---------------------------------------------------------
-	if(m_bFromAlnFile) 
-	{	pAcqSequence->SortByAcquisition();
-		m_bFromAngFile = false;
-		return true;
-	}	
-	//-----------------------------
-	m_pAlignParam = new CAlignParam;
-	m_pAlignParam->Create(m_iNumSections);
-	//-----------------------------------
-	for(int i=0; i<pAcqSequence->m_iNumSections; i++)
-	{	float fTilt = pAcqSequence->GetTiltAngle(i);
-		m_pAlignParam->SetTilt(i, fTilt);
-		m_pAlignParam->SetTiltAxis(i, pInput->m_afTiltAxis[0]); 
-		m_pAlignParam->SetSecIndex(i, i);
-	}
-	m_pAlignParam->SortByTilt();
-	//--------------------------------------------
-	pAcqSequence->SortByAcquisition();
-	m_bFromAngFile = true;
-	return true;
-}
-
 void CLoadAlignment::mReadHeaderSections(void)
 {
 	CInput* pInput = CInput::GetInstance();

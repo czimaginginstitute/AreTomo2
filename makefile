@@ -5,7 +5,7 @@
 #    also provided in Util and Mrcfile. To recompile them, run "make clean"
 #    followed by "make all" in Util first and then Mrcfile next.
 #-------------------------------------------------------------------------------
-CUDAHOME = $(HOME)/szheng/nvidia/cuda-10.1
+CUDAHOME = $(HOME)/szheng/nvidia/cuda-12.1
 PRJHOME = $(shell pwd)
 CUDAINC = $(CUDAHOME)/include
 CUDALIB = $(CUDAHOME)/lib64
@@ -86,15 +86,14 @@ SRCS = ./Util/CNextItem.cpp \
 	./MrcUtil/CAlignParam.cpp \
 	./MrcUtil/CLocalAlignParam.cpp \
 	./MrcUtil/CPatchShifts.cpp \
-	./MrcUtil/CSaveAlignFile.cpp \
-	./MrcUtil/CLoadAlignFile.cpp \
+	./MrcUtil/CSaveAlnFile.cpp \
+	./MrcUtil/CLoadAlnFile.cpp \
+	./MrcUtil/CLoadAngFile.cpp \
 	./MrcUtil/CRemoveDarkFrames.cpp \
 	./MrcUtil/CCalcStackStats.cpp \
 	./MrcUtil/CDarkFrames.cpp \
-	./MrcUtil/CAcqSequence.cpp \
-	./MrcUtil/CTiltDoses.cpp \
-	./MrcUtil/CLoadAlignment.cpp \
 	./MrcUtil/CLoadStack.cpp \
+	./MrcUtil/CLoadMain.cpp \
 	./MrcUtil/CSaveStack.cpp \
 	./MrcUtil/CGenCentralSlices.cpp \
 	./MrcUtil/CCropVolume.cpp \
@@ -172,7 +171,7 @@ CUFLAG = -Xptxas -dlcm=ca -O2 \
 	-gencode arch=compute_61,code=sm_61 \
 	-gencode arch=compute_60,code=sm_60 \
 	-gencode arch=compute_53,code=sm_53 \
-	-gencode arch=compute_52,code=sm_52
+	-gencode arch=compute_52,code=sm_52 
 #------------------------------------------
 cuda: $(CUCPPS)
 

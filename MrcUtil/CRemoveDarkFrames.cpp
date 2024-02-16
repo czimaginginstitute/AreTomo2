@@ -9,30 +9,39 @@
 using namespace MrcUtil;
 
 static CTomoStack* s_pTomoStack = 0L;
-static CAlignParam* s_pAlignParam = 0L;
 static float s_fThreshold = 0.7f;
 
+static int sGetZeroTiltIdx(float* pfTilts, int iNumTilts)
+{
+	int iMin = 0;
+	double dMin = fabs(pfTilts[0]);
+	//-----------------
+	for(int i=1; i<iNumTilts; i++)
+	{	if(fabs(pfTilts[i]) >= dMin) continue;
+		dMin = fabs(pfTilts[i]);
+		iMin = i;
+	}
+	return iMin;
+}
+
 void CRemoveDarkFrames::DoIt
-(       CTomoStack* pTomoStack,
+(	CTomoStack* pTomoStack,
 	CAlignParam* pAlignParam,
 	float fThreshold,
 	int* piGpuIDs,
 	int iNumGpus
 )
-{	CDarkFrames* pDarkFrames = CDarkFrames::GetInstance();
-        pDarkFrames->Setup(pTomoStack->m_aiStkSize);
-	if(fThreshold <= 0 || fThreshold >= 1) return;
-	//--------------------------------------------
+{	if(fThreshold <= 0 || fThreshold >= 1) return;
+	//-----------------
 	s_pTomoStack = pTomoStack;
-	s_pAlignParam = pAlignParam;
 	s_fThreshold = fThreshold;
-	//------------------------
+	//-----------------
 	Util::CNextItem nextItem;
 	int iAllFrms = pTomoStack->m_aiStkSize[2];
 	nextItem.Create(iAllFrms);
-	float* pfMeans = new float[iAllFrms];
-	float* pfStds = new float[iAllFrms];
-	//----------------------------------
+	float* pfMeans = new float[iAllFrms * 2];
+	float* pfStds = &pfMeans[iAllFrms];
+	//-----------------
 	CRemoveDarkFrames* pThreads = new CRemoveDarkFrames[iNumGpus];
 	for(int i=0; i<iNumGpus; i++)
 	{	pThreads[i].Run(&nextItem, piGpuIDs[i], pfMeans, pfStds);
@@ -41,37 +50,42 @@ void CRemoveDarkFrames::DoIt
 	{	pThreads[i].WaitForExit(-1.0f);
 	}
 	delete[] pThreads;
-	//----------------
+	//-----------------
 	printf("# index  tilt    mean         std      ratio\n");
 	for(int i=0; i<iAllFrms; i++)
 	{	float fMean = (float)fabs(pfMeans[i]);
 		float fRatio = fMean / (pfStds[i] + 0.000001);
-		float fTilt = s_pAlignParam->GetTilt(i);
+		float fTilt = s_pTomoStack->m_pfTilts[i];
 		printf(" %3d  %8.2f  %8.2f  %8.2f  %8.2f\n", i, fTilt, 
 		   pfMeans[i], pfStds[i], fRatio);
 	}
 	printf("\n");
-	//----------------------------------------
-	int iZeroTilt = s_pAlignParam->GetFrameIdxFromTilt(0.0f);
+	//-----------------
+	int iZeroTilt = sGetZeroTiltIdx(s_pTomoStack->m_pfTilts, iAllFrms);
 	float fTol = s_fThreshold * (float)fabs(pfMeans[iZeroTilt]) 
 	   / (pfStds[iZeroTilt] + 0.000001f);
-	//-----------------------------------
+	//-----------------
+	CDarkFrames* pDarkFrames = CDarkFrames::GetInstance();
+	pDarkFrames->Setup(s_pTomoStack);
+	//-----------------
 	for(int i=0; i<iAllFrms; i++)
-	{	float fRatio = (float)fabs(pfMeans[i]) / (pfStds[i] + 0.000001f);
+	{	float fRatio = (float)fabs(pfMeans[i]) / 
+		   (pfStds[i] + 0.000001f);
 		if(fRatio > fTol) continue;
-		//-------------------------
-		int iSecIdx = s_pAlignParam->GetSecIndex(i);
-		float fTilt = s_pAlignParam->GetTilt(i);
-		pDarkFrames->Add(i, iSecIdx, fTilt);
+		//----------------
+		pDarkFrames->AddDark(i);
 	}
-	delete[] pfMeans; delete[] pfStds;
+	if(pfMeans != 0L) delete[] pfMeans;
 	if(pDarkFrames->m_iNumDarks <= 0) return;
-	//---------------------------------------	
+	//---------------------------------------------------------
+	// 1) Remove dark frames from backward.
+	// 2) Need remove them both in CTomoStack and CAlignParam.
+	//---------------------------------------------------------
 	for(int i=pDarkFrames->m_iNumDarks-1; i>=0; i--)
-	{	int iFrmIdx = pDarkFrames->GetFrmIdx(i);
-		float fTilt = pAlignParam->GetTilt(iFrmIdx);
-		pTomoStack->RemoveFrame(iFrmIdx);
-		pAlignParam->RemoveFrame(iFrmIdx);
+	{	int iDarkFm = pDarkFrames->GetDarkIdx(i);
+		float fTilt = pDarkFrames->GetTilt(iDarkFm);
+		pTomoStack->RemoveFrame(iDarkFm);
+		pAlignParam->RemoveFrame(iDarkFm);
 		printf("Remove image at %.2f deg: \n", fTilt);
 	}
 }

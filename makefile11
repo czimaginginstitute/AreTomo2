@@ -86,15 +86,14 @@ SRCS = ./Util/CNextItem.cpp \
 	./MrcUtil/CAlignParam.cpp \
 	./MrcUtil/CLocalAlignParam.cpp \
 	./MrcUtil/CPatchShifts.cpp \
-	./MrcUtil/CSaveAlignFile.cpp \
-	./MrcUtil/CLoadAlignFile.cpp \
+	./MrcUtil/CSaveAlnFile.cpp \
+	./MrcUtil/CLoadAlnFile.cpp \
+	./MrcUtil/CLoadAngFile.cpp \
 	./MrcUtil/CRemoveDarkFrames.cpp \
 	./MrcUtil/CCalcStackStats.cpp \
 	./MrcUtil/CDarkFrames.cpp \
-	./MrcUtil/CAcqSequence.cpp \
-	./MrcUtil/CTiltDoses.cpp \
-	./MrcUtil/CLoadAlignment.cpp \
 	./MrcUtil/CLoadStack.cpp \
+	./MrcUtil/CLoadMain.cpp \
 	./MrcUtil/CSaveStack.cpp \
 	./MrcUtil/CGenCentralSlices.cpp \
 	./MrcUtil/CCropVolume.cpp \

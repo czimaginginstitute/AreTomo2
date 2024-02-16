@@ -23,7 +23,7 @@ public:
 	~CAlignParam(void);
 	void Clean(void);
 	void Create(int iNumFrames);
-	void SetSecIndex(int iFrame, int iSecIdx);
+	void SetSecIdx(int iFrame, int iSecIdx);
 	void SetTilt(int iFrame, float fTilt);
 	void SetTiltAxis(int iFrame, float fTiltAxis);
 	void SetTiltAxisAll(float fTiltAxis);
@@ -31,7 +31,7 @@ public:
 	void SetCenter(float fCentX, float fCentY);
 	void SetTiltRange(float fEndAng1, float fEndAng2);
 	//------------------------------------------------
-	int GetSecIndex(int iFrame);
+	int GetSecIdx(int iFrame);
 	float GetTilt(int iFrame);
 	float GetTiltAxis(int iFrame);
 	void GetShift(int iFrame, float* pfShift);
@@ -64,7 +64,7 @@ public:
 	void MakeRelative(int iRefFrame);
 	void ResetShift(void);
 	void SortByTilt(void);
-	void SortBySecIndex(void);
+	void SortBySecIdx(void);
 	void RemoveFrame(int iFrame);
 	//---------------------------
 	CAlignParam* GetCopy(void);
@@ -76,7 +76,7 @@ public:
 	int m_iNumFrames;
 private:
 	void mSwap(int iFrame1, int iFrame2);
-	int* m_piSecIndex;
+	int* m_piSecIdxs;
 	float* m_pfTilts;
 	float* m_pfTiltAxis;
 	float* m_pfShiftXs;
@@ -138,24 +138,6 @@ private:
 	int m_iZeroTilt;
 };
 
-class CTiltDoses
-{
-public:
-	static CTiltDoses* GetInstance(void);
-	static void DeleteInstance(void);
-	~CTiltDoses(void);
-	void Clean(void);
-	void Setup(CAlignParam* pAlignParam);
-	float* GetDoses(void); // do not delete
-	float GetDose(int iImage);
-	bool m_bDoseWeight;
-	int m_iNumImgs;
-private:
-	float* m_pfDoses;
-	CTiltDoses(void);
-	static CTiltDoses* m_pInstance;
-};
-
 class CTomoStack
 {
 public:
@@ -164,15 +146,25 @@ public:
 	void Clean(void);
 	int GetPixels(void); // frame pixels
 	int GetNumFrames(void);
-	void Create(int* piStkSize, bool bAlloc);
-	//---------------------------------------
+	void Create(int* piStkSize);
+	//-----------------
 	void SetFrame(int iFrame, float* pfFrame);
 	float* GetFrame(int iFrame);  // do not free
 	void GetFrame(int iFrame, float* pfFrame);
-	//----------------------------------------
+	//-----------------
 	void SetCenter(int iFrame, float* pfCent);
 	void GetCenter(int iFrame, float* pfCent);
-	//----------------------------------------
+	//-----------------
+	void SetTilts(float* pfTilts);
+	void SetAcqs(int* piAcqIndices);
+	void SetSecs(int* piSecIndices);
+	//-----------------
+	void SortByTilt(void);
+	void SortByAcq(void);
+	void ResetSecIndices(void);
+	bool bHasTiltAngles(void);
+	bool bHasAcqIndices(void);
+	//-----------------
 	CTomoStack* GetCopy(void);
 	CTomoStack* GetSubStack
 	( int* piStart,  // 3 elements
@@ -180,13 +172,19 @@ public:
 	);
 	void RemoveFrame(int iFrame);
 	void GetAlignedFrameSize(float fTiltAxis, int* piAlnSize);
-	//--------------------------------------------------------
+	//-----------------
 	int m_aiStkSize[3];
 	float** m_ppfFrames;
+	float* m_pfTilts;
+	int* m_piAcqIndices;
+	int* m_piSecIndices;
+	//-----------------
 	float m_fPixSize;
+	float m_fImgDose;
 private:
 	void mCleanFrames(void);
 	void mCleanCenters(void);
+	void mSwap(int i, int k); // swap entry i and k
 	float** m_ppfCenters;
 };
 
@@ -236,58 +234,56 @@ private:
 	float* m_pfFrmStats;	
 };
 
+//--------------------------------------------------------------------
+// 1. m_pfTilts in CDarkFrames should be sorted in ascending order.
+// 2. m_piAcqIdxs stores the acquisition index at each tilt angle.
+//    This allows us to generate the ordered list needed by Relion4.
+// 3. m_piSecIdxs stores the mrc index of each tilt image since tilt
+//    images can be ordered in a MRC file according to tilt angle
+//    or acquisition index. This allows to save the section indices
+//    in .aln file where entries are ordered according to tilt angle.
+//--------------------------------------------------------------------
 class CDarkFrames
 {
 public:
 	static CDarkFrames* GetInstance(void);
 	static void DeleteInstance(void);
 	~CDarkFrames(void);
-	void Setup(int* piRawStkSize); // original tilts
-	void Add(int iFrmIdx, int iSecIdx, float fTilt);
+	void Setup(CTomoStack* pTomoStack); // tilt angle sorted!!!
+	void AddDark(int iFrmIdx);
 	void AddTiltOffset(float fTiltOffset);
-	int GetFrmIdx(int iNthDark);
-	int GetSecIdx(int iNthDark);
-	float GetTilt(int iNthDark);
-	bool IsDarkSection(int iSection); // index in input MRC
+	//-----------------
+	int GetAcqIdx(int iFrame);
+	int GetSecIdx(int iFrame);
+	float GetTilt(int iFrame);
+	int GetDarkIdx(int iNthDark); // return dark frame Idx
+	//-----------------
 	bool IsDarkFrame(int iFrame);
 	void GenImodExcludeList(char* pcLine, int iSize);
+	//-----------------
 	int m_aiRawStkSize[3];
 	int m_iNumDarks;
 private:
 	CDarkFrames(void);
 	void mClean(void);
-	int* m_piFrmIdxs; // frame index ordered by tilts
+	float* m_pfTilts; // tilt angles of all images;
+	int* m_piAcqIdxs; // frame index ordered by tilts
 	int* m_piSecIdxs; // section index ordered in orginal MRC file
-	float* m_pfTilts; // tilt angles of dark images
+	bool* m_pbDarkImgs; // flag of dark images
+	int* m_piDarkIdxs; // 
 	static CDarkFrames* m_pInstance;
 };
 
-class CAcqSequence
+class CLoadAngFile
 {
 public:
-	static CAcqSequence* GetInstance(void);
-	static void DeleteInstance(void);
-	~CAcqSequence(void);
-	void Clean(void);
-	void ReadAngFile(char* pcAngFile);
-	void AddTiltOffset(float fTiltOffset);
-	void SortByAcquisition(void);
-	int GetAcqIndexFromTilt(float fTilt);
-	int GetAcqIndexFromSection(int iSecIdx);
-	int GetAcqIndex(int iEntry);
-	int GetSecIndex(int iEntry);
-	float GetTiltAngle(int iEntry);
-	void SaveCsv(char* pcCsvName, int iOutImod);
-	bool hasSequence(void);
-	int m_iNumSections;
-private:
-	CAcqSequence(void);
-	void mSaveCsvRelion(char* pcCsvName);
-	void mSaveCsvWarp(char* pcCsvName);
-	int* m_piAcqIndices;
-	int* m_piSecIndices;
-	float* m_pfTiltAngles;
-	static CAcqSequence* m_pInstance;
+	CLoadAngFile(void);
+	~CLoadAngFile(void);
+	bool DoIt
+	( char* pcAngFile, 
+	  CTomoStack* pTomoStack
+	);
+	bool m_bLoaded;
 };
 
 class CFindObjectCenter : public Util_Thread
@@ -313,11 +309,11 @@ private:
 };
 
 
-class CSaveAlignFile
+class CSaveAlnFile
 {
 public:
-	CSaveAlignFile(void);
-	~CSaveAlignFile(void);
+	CSaveAlnFile(void);
+	~CSaveAlnFile(void);
 	void DoIt
 	( char* pcInMrcFile,
 	  char* pcOutMrcFile,
@@ -336,14 +332,15 @@ private:
 	int m_iNumPatches;
 };
 
-class CLoadAlignFile
+class CLoadAlnFile
 {
 public:
-	CLoadAlignFile(void);
-	~CLoadAlignFile(void);
+	CLoadAlnFile(void);
+	~CLoadAlnFile(void);
 	bool DoIt(const char* pcAlnFile);
 	CAlignParam* GetAlignParam(bool bClean);
 	CLocalAlignParam* GetLocalParam(bool bClean);
+	bool m_bLoaded;
 private:
 	bool mParseHeader(void);
 	bool mParseRawSize(char* pcLine);
@@ -359,53 +356,49 @@ private:
 	std::queue<char*> m_aDataQueue;
 };
 
-class CLoadAlignment
+class CLoadMain
 {
 public:
-	static CLoadAlignment* GetInstance(void);
+	static CLoadMain* GetInstance(void);
 	static void DeleteInstance(void);
-	~CLoadAlignment(void);
+	~CLoadMain(void);
 	bool DoIt(void);
+	CTomoStack* GetTomoStack(bool bClean);
 	CAlignParam* GetAlignParam(bool bClean);
 	CLocalAlignParam* GetLocalParam(bool bClean);
-	bool m_bFromAlnFile;
-	bool m_bFromTiltRange;
-	bool m_bFromAngFile;
-	bool m_bFromHeader;
 private:
-	CLoadAlignment(void);
+	CLoadMain(void);
 	void mClean(void);
-	void mDoAlnFile(void);
-	void mDoTiltRange(void);
-	bool mDoAngFile(void);
-	void mDoMrcFile(void);
-	void mReadHeaderSections(void);
+	void mLoadTomoStack(void);
+	void mLoadTiltAngles(void);
+	void mLoadAngFile(void);
+	void mLoadAlnFile(void);
+	void mCreateAlignParam(void);
+	//-----------------
+	CTomoStack* m_pTomoStack;
 	CAlignParam* m_pAlignParam;
 	CLocalAlignParam* m_pLocalParam;
 	int m_iNumSections; // number of images in MRC file
-	static CLoadAlignment* m_pInstance;
+	static CLoadMain* m_pInstance;
 };
 
 class CLoadStack
 {
 public:
-	static CLoadStack* GetInstance(void);
-	static void DeleteInstance(void);
+	CLoadStack(void);
 	~CLoadStack(void);
-	CTomoStack* DoIt(CAlignParam* pAlignParam);
+	CTomoStack* DoIt(char* pcMrcFile);
 	CTomoStack* GetStack(bool bClean);
 	int m_aiStkSize[3];
 private:
-	CLoadStack(void);
+	void mLoadTiltAngles(void);
 	void mLoadShort(void);
 	void mLoadUShort(void);
 	void mLoadFloat(void);
 	void mPrintStackInfo(int* piStkSize, int iMode);
 	//----------------------------------------------
 	CTomoStack* m_pTomoStack;
-	CAlignParam* m_pAlignParam;
 	Mrc::CLoadMrc m_aLoadMrc;
-	static CLoadStack* m_pInstance;
 };	//CLoadStacks
 
 
