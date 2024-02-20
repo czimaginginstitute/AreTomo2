@@ -369,3 +369,9 @@ AreTomo2 1.1.1 [02-15-2024]
 3. CProcessThread calls CTF estimation before removing dark images if
    -OutMod 1 is used or after if -OutImod 2 or 3 is used.
 
+AreTomo2 1.1.2 [02-20-2024]
+---------------------------
+1. ImodUtil/CSaveCsv: Make sure the iAcqIdx is 1-based. Find the min iAcqIdx
+   and then subtract the min and add 1. The line number is then iAcqIdx - 1.
+2. DoseWeight/CWeightTomoStack: Check if iAcqIdx is 0-based. If so, add
+   1 to it.

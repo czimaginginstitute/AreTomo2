@@ -91,6 +91,16 @@ void CSaveCsv::mGenList(void)
 	m_pcOrderedList = new char[m_iAllTilts * 256];
 	m_pbDarkImgs = new bool[m_iAllTilts];
 	//-----------------------------------------------
+	// 1) Check if iAcqIdx is 0-based. If so, add
+	// 1 to be consistent with Relion 4.
+	//-----------------------------------------------
+	int iMinAcq = pDarkFrames->GetAcqIdx(0);
+	for(int i=1; i<m_iAllTilts; i++)
+	{	int iAcqIdx = pDarkFrames->GetAcqIdx(i);
+		if(iMinAcq < iAcqIdx) continue;
+		else iMinAcq = iAcqIdx;
+	}	
+	//-----------------------------------------------
 	// CTomoStack stores bright images whenre dark 
 	// images have been removed. Since CDarkFrames
 	// keeps the indices and tilt angles of all
@@ -98,12 +108,13 @@ void CSaveCsv::mGenList(void)
 	//-----------------------------------------------
 	for(int i=0; i<m_iAllTilts; i++)
 	{	float fTilt = pDarkFrames->GetTilt(i);
-		int iAcqIdx = pDarkFrames->GetAcqIdx(i);
+		int iAcqIdx = pDarkFrames->GetAcqIdx(i) - iMinAcq + 1;
+		int iLine = iAcqIdx - 1;
 		//----------------
-		char* pcLine = m_pcOrderedList + iAcqIdx * 256;
-		sprintf(pcLine, "%4d,%.2f", iAcqIdx+1, fTilt);
+		char* pcLine = m_pcOrderedList + iLine * 256;
+		sprintf(pcLine, "%4d,%.2f", iAcqIdx, fTilt);
 		//----------------
-		m_pbDarkImgs[iAcqIdx] = pDarkFrames->IsDarkFrame(i);
+		m_pbDarkImgs[iLine] = pDarkFrames->IsDarkFrame(i);
 	}
 }
 

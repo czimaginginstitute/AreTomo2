@@ -102,13 +102,29 @@ void CWeightTomoStack::ThreadMain(void)
 	this->Clean();
 }
 
+void CWeightTomoStack::mCheckAcqBase(void)
+{
+	bool bZeroBased = false;
+	for(int i=0; i<s_pTomoStack->m_aiStkSize[2]; i++)
+	{	int iAcqIdx = s_pTomoStack->m_piAcqIndices[i];
+		if(iAcqIdx != 0) continue;
+		bZeroBased = true;
+		break;
+	}
+	if(bZeroBased) m_iAcqBase = 1;
+	else m_iAcqBase = 0;
+}
+
+
 void CWeightTomoStack::mSetupDoseWeight(void)
 {	
+	mCheckAcqBase();
+	//-----------------	
 	float fImgDose = s_pTomoStack->m_fImgDose;
 	m_pfDoses = new float[s_pTomoStack->m_aiStkSize[2]];
 	for(int i=0; i<s_pTomoStack->m_aiStkSize[2]; i++)
 	{	int iAcqIdx = s_pTomoStack->m_piAcqIndices[i];
-		m_pfDoses[i] = (iAcqIdx + 1) * fImgDose;
+		m_pfDoses[i] = (iAcqIdx + m_iAcqBase) * fImgDose;
 	}
 	//-----------------
 	CInput* pInput = CInput::GetInstance();

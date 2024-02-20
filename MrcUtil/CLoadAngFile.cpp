@@ -55,6 +55,17 @@ bool CLoadAngFile::DoIt
 		}
 		delete[] pcLine;
 	}
+	//-----------------------------------------------
+	// Make sure piAcqIdxs are 1-based.
+	//-----------------------------------------------
+	int iMinAcq = piAcqIdxs[0];
+	for(int i=1; i<iCount; i++)
+	{	if(piAcqIdxs[i] >= iMinAcq) continue;
+		iMinAcq = piAcqIdxs[i];
+	}
+	for(int i=0; i<iCount; i++)
+	{	piAcqIdxs[i] = piAcqIdxs[i] - iMinAcq + 1;
+	}
 	//-----------------
 	if(iCount == pTomoStack->m_aiStkSize[2])
 	{	pTomoStack->SetTilts(pfTilts);

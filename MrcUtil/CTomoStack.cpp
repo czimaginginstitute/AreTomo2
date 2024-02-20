@@ -193,9 +193,11 @@ bool CTomoStack::bHasAcqIndices(void)
 {
 	if(m_aiStkSize[2] <= 0) return false;
 	//-----------------
+	int iMid = m_aiStkSize[2] / 2;
 	int iLast = m_aiStkSize[2] - 1;
-	if(m_piSecIndices[0] == m_piSecIndices[iLast]) return false;
-	else return true;
+	if(m_piAcqIndices[0] == m_piAcqIndices[iLast]) return false;
+	if(m_piAcqIndices[0] == m_piAcqIndices[iMid]) return false;
+	return true;
 }
 
 CTomoStack* CTomoStack::GetCopy(void)

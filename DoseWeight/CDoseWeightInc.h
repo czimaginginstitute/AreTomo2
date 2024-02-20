@@ -33,6 +33,7 @@ public:
 	void Run(Util::CNextItem* pNextItem, int iGpuID);
 	void ThreadMain(void);
 private:
+	void mCheckAcqBase(void);
 	void mSetupDoseWeight(void);
 	void mCorrectProj(int iProj);
 	void mForwardFFT(int iProj);
@@ -46,6 +47,7 @@ private:
 	Util::CNextItem* m_pNextItem;
 	GDoseWeightImage* m_pGDoseWeightImg;
 	float* m_pfDoses;
+	int m_iAcqBase;
 	int m_iGpuID;
 };
 }
