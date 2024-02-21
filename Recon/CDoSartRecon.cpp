@@ -34,11 +34,11 @@ MrcUtil::CTomoStack* CDoSartRecon::DoIt
 	//aiVolSize[0] = (pTomoStack->m_aiStkSize[0] + 16) / 2 * 2;
 	aiVolSize[0] = pTomoStack->m_aiStkSize[0] / 2 * 2;
 	s_pVolStack = new MrcUtil::CTomoStack;
-	s_pVolStack->Create(aiVolSize, true);
-	//-----------------------------------
+	s_pVolStack->Create(aiVolSize);
+	//-----------------
 	Util::CNextItem nextItem;
 	nextItem.Create(pTomoStack->m_aiStkSize[1]);
-	//------------------------------------------
+	//-----------------
 	CDoSartRecon* pThreads = new CDoSartRecon[iNumGpus];
 	for(int i=0; i<iNumGpus; i++)
 	{	pThreads[i].Run(&nextItem, piGpuIDs[i]);

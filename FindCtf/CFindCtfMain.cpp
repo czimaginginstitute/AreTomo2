@@ -122,23 +122,29 @@ void CFindCtfMain::mDo2D(void)
 {	
 	float afDfRange[2] = {0.0f}, afAstRatio[2] = {0.0f};
 	float afAstAngle[2] = {0.0f}, afExtPhase[2] = {0.0f};
-	//---------------------------------------------------
+	//-----------------
 	CCtfResults* pCtfResults = CCtfResults::GetInstance();
 	float fDfMin = pCtfResults->GetDfMin(m_iRefTilt);
 	float fDfMax = pCtfResults->GetDfMax(m_iRefTilt);
 	afDfRange[0] = 0.5f * (fDfMin + fDfMax); 
-	afDfRange[1] = fmaxf(afDfRange[0] * 0.25f, 5000.0f);
+	afDfRange[1] = fmaxf(afDfRange[0] * 0.25f, 10000.0f);
+	//-----------------
 	afAstRatio[0] = CFindCtfHelp::CalcAstRatio(fDfMin, fDfMax);
-	//---------------------------------------------------------
+	afAstRatio[1] = fmaxf(afAstRatio[0] * 0.10f, 0.01f);
+	//-----------------
 	afAstAngle[0] = pCtfResults->GetAzimuth(m_iRefTilt);
+	afAstAngle[1] = 0.0f;
+	//-----------------
 	afExtPhase[0] = pCtfResults->GetExtPhase(m_iRefTilt);
-	//---------------------------------------------------
+	afExtPhase[1] = 0.0f;
+	//-----------------
 	for(int i=0; i<m_pTomoStack->m_aiStkSize[2]; i++)
 	{	if(i == m_iRefTilt) continue;
 		m_pFindCtf2D->SetHalfSpect(m_ppfHalfSpects[i]);
 		m_pFindCtf2D->Refine(afDfRange, afAstRatio, 
 		   afAstAngle, afExtPhase);
-		mGetResults(i);
+		//----------------
+		float fScore = mGetResults(i);
 	}
 	//---------------------
 	CInput* pInput = CInput::GetInstance();
@@ -186,20 +192,22 @@ void CFindCtfMain::mSaveSpectFile(void)
 	printf("\n");
 }
 
-void CFindCtfMain::mGetResults(int iTilt)
+float CFindCtfMain::mGetResults(int iTilt)
 {
 	CCtfResults* pCtfResults = CCtfResults::GetInstance();
 	float fTilt = m_pAlignParam->GetTilt(iTilt);
-	//------------------------------------------
+	//-----------------
 	pCtfResults->SetTilt(iTilt, fTilt);
 	pCtfResults->SetDfMin(iTilt, m_pFindCtf2D->m_fDfMin);
 	pCtfResults->SetDfMax(iTilt, m_pFindCtf2D->m_fDfMax);
 	pCtfResults->SetAzimuth(iTilt, m_pFindCtf2D->m_fAstAng);
 	pCtfResults->SetExtPhase(iTilt, m_pFindCtf2D->m_fExtPhase);
 	pCtfResults->SetScore(iTilt, m_pFindCtf2D->m_fScore);
-	//---------------------------------------------------
+	//-----------------
 	float* pfSpect = m_pFindCtf2D->GenFullSpectrum();
 	pCtfResults->SetSpect(iTilt, pfSpect);
+	//-----------------
+	return m_pFindCtf2D->m_fScore;
 }
 
 char* CFindCtfMain::mGenSpectFileName(void)

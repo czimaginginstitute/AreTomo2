@@ -75,11 +75,7 @@ void CFindCtf1D::mFindDefocus(void)
 	afDfRange[0] = 3000.0f * fPixSize2;
 	afDfRange[1] = 30000.0f * fPixSize2;
 	//------------------
-	float afPhaseRange[2] = {0.0f};
-	afPhaseRange[0] = fmax(m_fExtPhase - m_fPhaseRange / 2, 0.0f);
-	afPhaseRange[1] = fmin(afPhaseRange[0] + m_fPhaseRange, 180.0f);
-	//------------------
-	m_pFindDefocus1D->DoIt(afDfRange, afPhaseRange, m_gfRadialAvg);
+	m_pFindDefocus1D->DoIt(afDfRange, m_afPhaseRange, m_gfRadialAvg);
 	m_fExtPhase = m_pFindDefocus1D->m_fBestPhase;
 	m_fDfMin = m_pFindDefocus1D->m_fBestDf;
 	m_fDfMax = m_fDfMin;
@@ -93,14 +89,14 @@ void CFindCtf1D::mRefineDefocus(float fDfRange)
 	float afDfRange[2] = {0.0f};
 	afDfRange[0] = m_fDfMin; // central value
 	afDfRange[1] = fDfRange * fPixSize2; 
-	//----------------------------------
-	float afPhaseRange[2] = {0.0f};
-	afPhaseRange[0] = m_fExtPhase;
-	afPhaseRange[1] = m_fPhaseRange * 0.2f;
-	if(m_fPhaseRange > 0) 
-	{	afPhaseRange[1] = fmaxf(afPhaseRange[1], 4.0f);
-	}
-	//-----------------------------------------------------
+	//-----------------
+	float fPhaseRange = (m_afPhaseRange[1] - m_afPhaseRange[0]) * 0.25f;
+	float fMin = m_fExtPhase - fPhaseRange * 0.5f;
+	if(fMin < m_afPhaseRange[0]) fMin = m_afPhaseRange[0];
+	float fMax = m_fExtPhase + fPhaseRange * 0.5f;
+	if(fMax > m_afPhaseRange[1]) fMax = m_afPhaseRange[1];
+	float afPhaseRange[] = {fMin, fMax};
+	//-----------------
 	m_pFindDefocus1D->DoIt(afDfRange, afPhaseRange, m_gfRadialAvg);
 	m_fExtPhase = m_pFindDefocus1D->m_fBestPhase;
 	m_fDfMin = m_pFindDefocus1D->m_fBestDf;

@@ -11,26 +11,32 @@ using namespace ImodUtil;
 
 CSaveCsv::CSaveCsv(void)
 {
+	m_pvFile = 0L;
+        m_pcOrderedList = 0L;
+        m_pbDarkImgs = 0L;
 }
 
 CSaveCsv::~CSaveCsv(void)
 {
+	if(m_pvFile != 0L) fclose((FILE*)m_pvFile);
+        mClean();
 }
 
-void CSaveCsv::DoIt
-(	MrcUtil::CAlignParam* pGlobalParam,
-	const char* pcFileName
-)
-{	FILE* pFile = fopen(pcFileName, "wt");
+void CSaveCsv::DoIt(const char* pcFileName)
+{	
+	mClean();
+	FILE* pFile = fopen(pcFileName, "wt");
 	if(pFile == 0L) return;
-	m_pvFile = pFile;
-	m_pGlobalParam = pGlobalParam;
-	//---------------------------
+	else m_pvFile = pFile;
+	//-----------------
 	CInput* pInput = CInput::GetInstance();
 	if(pInput->m_iOutImod == 1) mSaveForRelion();
 	else if(pInput->m_iOutImod == 2) mSaveForWarp();
 	else if(pInput->m_iOutImod == 3) mSaveForAligned();
+	//-----------------
 	fclose(pFile);
+	m_pvFile = 0L;
+	mClean();
 }
 
 //-----------------------------------------------------------------------------
@@ -39,14 +45,14 @@ void CSaveCsv::DoIt
 void CSaveCsv::mSaveForAligned(void)
 {
 	FILE* pFile = (FILE*)m_pvFile;
-	fprintf(pFile, "ImageNumber, TiltAngle\n");
-	// aligned & dark-removed tilt series
-	int iLast = m_pGlobalParam->m_iNumFrames - 1;
-	for(int i=0; i<=iLast; i++)
-	{	int iSecIdx = m_pGlobalParam->GetSecIndex(i);
-		float fTilt = m_pGlobalParam->GetTilt(i);
-		fprintf(pFile, "%4d, %8.2f\n", iSecIdx+1, fTilt);
-	}
+	int iCounter = 0;
+	fprintf(pFile, "ImageNumber,TiltAngle\n");
+	for(int i=0; i<m_iAllTilts; i++) // i is iAcqIdx
+	{	if(m_pbDarkImgs[i]) continue;
+		char* pcLine = m_pcOrderedList + iCounter * 256;
+		fprintf(pFile, "%s\n", pcLine);
+		iCounter += 1;
+        }
 }
 
 void CSaveCsv::mSaveForWarp(void)
@@ -55,34 +61,72 @@ void CSaveCsv::mSaveForWarp(void)
 }
 
 //-----------------------------------------------------------------------------
-// Relion 4 requires the last line have a line return per Ge Peng of UCLA
+// 1. Relion 4 manual indicates that Ordered List is a chronological order
+//    (sorted in ascending order) of the tilt series acquistion. It is a
+//    2-column, comma-separated, and no-space file with the frame-order
+//    list of the tilt series.
+// 2. The first column is the frame (image) number (starting at 1) and the
+//    second is the tilt angle (in degree).
+// 3. Relion 4 works on tilt series including dark images that are specified
+//    in tilt.com file.
+// 4. Relion 4 requires the last line have a line return per Ge Peng of UCLA
 //-----------------------------------------------------------------------------
 void CSaveCsv::mSaveForRelion(void)
 {
+	mGenList();
+	//-----------------
 	FILE* pFile = (FILE*)m_pvFile;
-	fprintf(pFile, "ImageNumber, TiltAngle\n");
-	// raw tilt series as input to Relion 4
-	MrcUtil::CDarkFrames* pDarkFrames = 0L;
-	pDarkFrames = MrcUtil::CDarkFrames::GetInstance();
-	int iAllTilts = pDarkFrames->m_aiRawStkSize[2];
-	char* pcLines = new char[iAllTilts * 256];
-	for(int i=0; i<m_pGlobalParam->m_iNumFrames; i++)
-	{	float fTilt = m_pGlobalParam->GetTilt(i);
-		int iSecIdx = m_pGlobalParam->GetSecIndex(i);
-		char* pcLine = pcLines + iSecIdx * 256;
-		sprintf(pcLine, "%4d, %8.2f", iSecIdx+1, fTilt);
-	}
-	for(int i=0; i<pDarkFrames->m_iNumDarks; i++)
-	{	float fTilt = pDarkFrames->GetTilt(i);
-		int iSecIdx = pDarkFrames->GetSecIdx(i);
-		char* pcLine = pcLines + iSecIdx * 256;
-		sprintf(pcLine, "%4d, %8.2f", iSecIdx+1, fTilt);
-	}
-	//------------------------------------------------------
-	int iLast = iAllTilts - 1;
-	for(int i=0; i<=iLast; i++)
-	{	char* pcLine = pcLines + i * 256;
+	for(int i=0; i<m_iAllTilts; i++)
+	{	char* pcLine = m_pcOrderedList + i * 256;
 		fprintf(pFile, "%s\n", pcLine);
 	}
-	delete[] pcLines;
 }
+
+void CSaveCsv::mGenList(void)
+{
+        MrcUtil::CDarkFrames* pDarkFrames =
+	   MrcUtil::CDarkFrames::GetInstance();
+	m_iAllTilts = pDarkFrames->m_aiRawStkSize[2];
+	//-----------------
+	m_pcOrderedList = new char[m_iAllTilts * 256];
+	m_pbDarkImgs = new bool[m_iAllTilts];
+	//-----------------------------------------------
+	// 1) Check if iAcqIdx is 0-based. If so, add
+	// 1 to be consistent with Relion 4.
+	//-----------------------------------------------
+	int iMinAcq = pDarkFrames->GetAcqIdx(0);
+	for(int i=1; i<m_iAllTilts; i++)
+	{	int iAcqIdx = pDarkFrames->GetAcqIdx(i);
+		if(iMinAcq < iAcqIdx) continue;
+		else iMinAcq = iAcqIdx;
+	}	
+	//-----------------------------------------------
+	// CTomoStack stores bright images whenre dark 
+	// images have been removed. Since CDarkFrames
+	// keeps the indices and tilt angles of all
+        // tilt images, we use it to build the list.
+	//-----------------------------------------------
+	for(int i=0; i<m_iAllTilts; i++)
+	{	float fTilt = pDarkFrames->GetTilt(i);
+		int iAcqIdx = pDarkFrames->GetAcqIdx(i) - iMinAcq + 1;
+		int iLine = iAcqIdx - 1;
+		//----------------
+		char* pcLine = m_pcOrderedList + iLine * 256;
+		sprintf(pcLine, "%4d,%.2f", iAcqIdx, fTilt);
+		//----------------
+		m_pbDarkImgs[iLine] = pDarkFrames->IsDarkFrame(i);
+	}
+}
+
+void CSaveCsv::mClean(void)
+{
+	if(m_pcOrderedList != 0L)
+	{	delete[] m_pcOrderedList;
+		m_pcOrderedList = 0L;
+	}
+	if(m_pbDarkImgs != 0L)
+	{	delete[] m_pbDarkImgs;
+		m_pbDarkImgs = 0L;
+	}
+}
+

@@ -1,12 +1,13 @@
 #include "CDoseWeightInc.h"
 #include "../CInput.h"
-#include <CuUtilFFT/GFFT2D.h>
 #include <memory.h>
 #include <stdio.h>
+#include <cuda_runtime.h>
 
 using namespace DoseWeight;
 
 static MrcUtil::CTomoStack* s_pTomoStack = 0L;
+static bool s_bDoseWeight = false;
 
 void CWeightTomoStack::DoIt
 (	MrcUtil::CTomoStack* pTomoStack,
@@ -14,13 +15,16 @@ void CWeightTomoStack::DoIt
 	int iNumGpus
 )
 {	s_pTomoStack = pTomoStack;
-	MrcUtil::CTiltDoses* pTiltDoses = MrcUtil::CTiltDoses::GetInstance();
-	if(!pTiltDoses->m_bDoseWeight) printf("Start Fourier cropping ...\n");
-	else printf("Start dose weighting & Fourier cropping...\n");
-	//----------------------------------------------------------
+	s_bDoseWeight = s_pTomoStack->bHasAcqIndices() &&
+	   s_pTomoStack->m_fImgDose > 0;
+	if(s_bDoseWeight)
+	{	printf("Dose weighting and Fourier cropping ......\n");
+	}
+	else printf("Start Fourier cropping ......\n");
+	//-----------------
 	Util::CNextItem nextItem;
 	nextItem.Create(pTomoStack->m_aiStkSize[2]);
-	//------------------------------------------
+	//-----------------
 	CWeightTomoStack* pThreads = new CWeightTomoStack[iNumGpus];
 	for(int i=0; i<iNumGpus; i++)
 	{	pThreads[i].Run(&nextItem, piGpuIDs[i]);
@@ -29,15 +33,21 @@ void CWeightTomoStack::DoIt
 	{	pThreads[i].WaitForExit(-1.0f);
 	}
 	delete[] pThreads;
-	//-------------------------------------
-	if(!pTiltDoses->m_bDoseWeight) printf("Fourier cropping done.\n\n");
-	else printf("Dose weighting & Fourier cropping done.\n\n");
+	//-----------------
+	if(s_bDoseWeight) 
+	{	printf("Dose weighting and Fourier cropping of "
+		   "tilt series: done.\n\n");
+	}
+	else
+	{	printf("Fourier cropping of tilt series: done\n\n");
+	}
 }
 
 CWeightTomoStack::CWeightTomoStack(void)
 {
 	m_pGDoseWeightImg = 0L;
 	m_gCmpImg = 0L;
+	m_pfDoses = 0L;
 }
 
 CWeightTomoStack::~CWeightTomoStack(void)
@@ -49,8 +59,10 @@ void CWeightTomoStack::Clean(void)
 {
 	if(m_pGDoseWeightImg != 0L) delete m_pGDoseWeightImg;
 	if(m_gCmpImg != 0L) cudaFree(m_gCmpImg);
+	if(m_pfDoses != 0L) delete[] m_pfDoses;
 	m_pGDoseWeightImg = 0L;
-	m_gCmpImg = 0L;	
+	m_gCmpImg = 0L;
+	m_pfDoses = 0L;
 }
 
 void CWeightTomoStack::Run
@@ -66,35 +78,60 @@ void CWeightTomoStack::ThreadMain(void)
 {
 	this->Clean();
 	cudaSetDevice(m_iGpuID);
-	//----------------------
+	//-----------------
 	m_aiCmpSize[0] = s_pTomoStack->m_aiStkSize[0] / 2 + 1;
 	m_aiCmpSize[1] = s_pTomoStack->m_aiStkSize[1];
-	//--------------------------------------------
+	//-----------------
 	int iCmpSize = m_aiCmpSize[0] * m_aiCmpSize[1];
 	cudaMalloc(&m_gCmpImg, sizeof(cufftComplex) * iCmpSize);
-	//------------------------------------------------------
-	bool bPad = true;
-	m_aForwardFFT.CreateForwardPlan(s_pTomoStack->m_aiStkSize, !bPad);
-	m_aInverseFFT.CreateInversePlan(s_pTomoStack->m_aiStkSize, !bPad);	
-	//----------------------------------------------------------------
-	MrcUtil::CTiltDoses* pTiltDoses = MrcUtil::CTiltDoses::GetInstance();
-	if(pTiltDoses->m_bDoseWeight)
-	{	CInput* pInput = CInput::GetInstance();
-		m_pGDoseWeightImg = new GDoseWeightImage;
-		m_pGDoseWeightImg->BuildWeight(pInput->m_fPixelSize,
-		   pInput->m_fKv, pTiltDoses->GetDoses(), 
-		   s_pTomoStack->m_aiStkSize);
-	}
+	//-----------------
+	m_aForwardFFT.CreatePlan(s_pTomoStack->m_aiStkSize, true);
+	m_aInverseFFT.CreatePlan(s_pTomoStack->m_aiStkSize, false);	
+	//-----------------
+	if(s_bDoseWeight) mSetupDoseWeight();
+	//-----------------
 	while(true)
 	{	int iProj = m_pNextItem->GetNext();
 		if(iProj < 0) break;
 		mCorrectProj(iProj);
 		printf("  image %4d has been processed.\n", iProj);
 	}
-	//-------------------------------------------------------------
+	//-----------------
 	m_aForwardFFT.DestroyPlan();
 	m_aInverseFFT.DestroyPlan();
 	this->Clean();
+}
+
+void CWeightTomoStack::mCheckAcqBase(void)
+{
+	bool bZeroBased = false;
+	for(int i=0; i<s_pTomoStack->m_aiStkSize[2]; i++)
+	{	int iAcqIdx = s_pTomoStack->m_piAcqIndices[i];
+		if(iAcqIdx != 0) continue;
+		bZeroBased = true;
+		break;
+	}
+	if(bZeroBased) m_iAcqBase = 1;
+	else m_iAcqBase = 0;
+}
+
+
+void CWeightTomoStack::mSetupDoseWeight(void)
+{	
+	mCheckAcqBase();
+	//-----------------	
+	float fImgDose = s_pTomoStack->m_fImgDose;
+	m_pfDoses = new float[s_pTomoStack->m_aiStkSize[2]];
+	for(int i=0; i<s_pTomoStack->m_aiStkSize[2]; i++)
+	{	int iAcqIdx = s_pTomoStack->m_piAcqIndices[i];
+		m_pfDoses[i] = (iAcqIdx + m_iAcqBase) * fImgDose;
+	}
+	//-----------------
+	CInput* pInput = CInput::GetInstance();
+	m_pGDoseWeightImg = new GDoseWeightImage;
+	m_pGDoseWeightImg->BuildWeight(pInput->m_fPixelSize, 
+	   pInput->m_fKv, m_pfDoses,
+	   s_pTomoStack->m_aiStkSize);
 }
 
 void CWeightTomoStack::mCorrectProj(int iProj)
@@ -117,8 +154,7 @@ void CWeightTomoStack::mForwardFFT(int iProj)
 void CWeightTomoStack::mDoseWeight(int iProj)
 {
 	if(m_pGDoseWeightImg == 0L) return;
-	MrcUtil::CTiltDoses* pTiltDoses = MrcUtil::CTiltDoses::GetInstance();
-	float fDose = pTiltDoses->GetDose(iProj);
+	float fDose = m_pfDoses[iProj];
 	m_pGDoseWeightImg->DoIt(m_gCmpImg, fDose);
 }
 

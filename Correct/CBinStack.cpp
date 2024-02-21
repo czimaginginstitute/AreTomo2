@@ -2,6 +2,7 @@
 #include "../Util/CUtilInc.h"
 #include <memory.h>
 #include <stdio.h>
+#include <cuda_runtime.h>
 
 using namespace Correct;
 
@@ -24,15 +25,15 @@ void CBinStack::DoIt
 	aiOutSize[2] = pTomoStack->m_aiStkSize[2];
 	Util::GBinImage2D::GetBinSize(piInSize, !bInPadded, 
 		iBinning, aiOutSize, !bOutPadded);
-	pBinStack->Create(aiOutSize, true);
-	//---------------------------------
+	pBinStack->Create(aiOutSize);
+	//-----------------
 	Util::GBinImage2D aGBinImg2D;
 	aGBinImg2D.SetupBinning(piInSize, iBinning, !bInPadded, !bOutPadded); 
-	//-------------------------------------------------------------------
+	//-----------------
 	float* gfOutImg = 0L;
 	size_t tOutBytes = sizeof(float) * pBinStack->GetPixels();
 	cudaMalloc(&gfOutImg, tOutBytes);
-	//-------------------------------
+	//-----------------
 	float* gfInImg = 0L;
 	size_t tInBytes = sizeof(float) * pTomoStack->GetPixels();
 	cudaMalloc(&gfInImg, tInBytes);

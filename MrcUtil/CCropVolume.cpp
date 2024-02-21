@@ -80,9 +80,8 @@ void CCropVolume::mCreateOutVol(void)
 	if(aiStkSize[0] > piInStkSize[0]) aiStkSize[0] = piInStkSize[0];
 	if(aiStkSize[2] > piInStkSize[2]) aiStkSize[2] = piInStkSize[2];
 	//--------------------------------------------------------------
-	bool bAlloc = true;
 	m_pOutVol = new CTomoStack;
-	m_pOutVol->Create(aiStkSize, bAlloc);
+	m_pOutVol->Create(aiStkSize);
 }
 
 void CCropVolume::mCalcOutVol(void)

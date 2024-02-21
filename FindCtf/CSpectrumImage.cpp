@@ -42,8 +42,10 @@ void CSpectrumImage::DoIt
 void CSpectrumImage::mGenFullSpectrum(void)
 {
 	GCalcSpectrum gCalcSpect;
-	gCalcSpect.GenFullSpect(m_gfHalfSpect, m_aiCmpSize, m_gfFullSpect);
-	//-----------------------------------------------------------------
+	bool bFullPadded = false;
+	gCalcSpect.GenFullSpect(m_gfHalfSpect, m_aiCmpSize, 
+	   m_gfFullSpect, bFullPadded);
+	//------------------
 	Util::GCalcMoment2D gCalcMoment;
 	bool bSync = true, bPadded = true;
 	gCalcMoment.SetSize(m_aiCmpSize, !bPadded);

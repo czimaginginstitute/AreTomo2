@@ -422,6 +422,7 @@ void CInput::Parse(int argc, char* argv[])
 	if(aiRange[1] > 1) aiRange[1] = 1;
 	aParseArgs.GetVals(aiRange, &m_iIntpCor);
 	//---------------------------------------
+	if(strlen(m_acAlnFile) != 0) m_iAlign = 0;
 	mPrint();	
 }
 

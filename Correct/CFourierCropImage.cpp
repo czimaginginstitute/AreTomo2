@@ -9,7 +9,7 @@ using namespace Correct;
 CFourierCropImage::CFourierCropImage(void)
 {
 	m_gForward2D = 0L;
-	m_gInverse2D = new CuUtilFFT::GFFT2D;
+	m_gInverse2D = new Util::GFFT2D;
 }
 
 CFourierCropImage::~CFourierCropImage(void)

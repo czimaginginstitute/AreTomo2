@@ -117,21 +117,21 @@ void CCorrTomoStack::Set2(float fOutBin, bool bFourierCrop, bool bRandFill)
 	m_fOutBin = fOutBin;
 	m_bFourierCrop = bFourierCrop;
 	m_bRandomFill = m_bFourierCrop ? true : bRandFill;
-	//------------------------------------------------
+	//-----------------
 	CCorrectUtil::CalcBinnedSize(m_aiAlnSize, m_fOutBin,
 	   m_bFourierCrop, m_aiBinnedSize);
 	m_aiBinnedSize[2] = m_aiStkSize[2];
-	//---------------------------------
+	//-----------------
 	m_afBinning[0] = m_aiAlnSize[0] / (float)m_aiBinnedSize[0];
 	m_afBinning[1] = m_aiAlnSize[1] / (float)m_aiBinnedSize[1];
-	//---------------------------------------------------------
+	//-----------------
 	bool bPad = true;
 	m_gfBinProj = sAllocGPU(m_aiBinnedSize, bPad);
-	//--------------------------------------------
+	//-----------------
 	if(m_pOutStack != 0L) delete m_pOutStack;
 	m_pOutStack = new MrcUtil::CTomoStack;
-	m_pOutStack->Create(m_aiBinnedSize, true);
-	//----------------------------------------
+	m_pOutStack->Create(m_aiBinnedSize);
+	//-----------------
 	if(m_bFourierCrop)
 	{	m_aFFTCropImg.Setup(0, m_aiAlnSize, m_fOutBin);
 	}

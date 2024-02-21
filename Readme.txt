@@ -325,3 +325,53 @@ AreTomo2 [Oct 02, 2023]
 -----------------------
 1. Renamed from AreTomo 1.4.3 to AreTomo2
 2. Change: FindCtf/CGenAvgSpectrum.cpp increases the overlapping from 30 to 50.
+
+AreTomo2 1.1.0 [01-28-2024]
+---------------------------
+1. FindCtf
+   1) CFindCtfMain: repeat estimation from scratch if the refinement yields a
+      score very close to 0.
+   2) CFindCtfBase: low-pass the full spectrum to enhance the Thon rings at
+      high resolution. Then truncate into half spectrum for CTF estimation.
+   3) In background removal, the box size is reduced to Y / 30 from Y / 15.
+2. StreAlign:
+   1) CStretchXcf: when measured shift exceeds 25% of the image size, reset
+      the shift to zero. A large shift will cause NaN error in tilt offset
+      estimation.
+3. Removed the dependency of libraries of CuUtil and CuUtilFFT.
+4. Added GFFT1D.cu and GFFT2D.cu in Util subfolder
+5. Remvoed CCufft2D.cpp. Its functions are provided in GFFT2D.
+6. Added LibSrc folder that contains Util and Mrcfile subfolders where the
+   source code of libutil.a and libmrcfile.a are provided. Run "make clean"
+   followed by "make all" first in Util and then Mrcfile to recompile the
+   libxxx.a files.
+7. Revised makefile11 and makefile.
+8. 02-04-2024:
+   1) CFindDefocus1D and CFindDefocus2D: ensure the search within the
+      given range.
+   2) CFindCtfBase::mRemoveBackground: removed thresholding and reduced
+      the B-factor from 10 to 5.
+
+AreTomo2 1.1.1 [02-15-2024]
+---------------------------
+1. MrcUtil
+   1) CTomoStack tracks the order of tilt images in input MRC file (secIdx)
+   the order of acquisition (acqIdx), and stores tilt angles.
+   2) CDarkFrames tracks secIdx, acqIdx, tilt angles for all tilt images
+   including dark images.
+   3) CLoadMain loads tilt series from MRC file, CAlignParam from .aln
+   file, tilt angles and acqIdx from -angFile.
+2. ImodUtil
+   1) CSaveCsv saves sorted acqIdx and tilt angles and has removed
+   white spaces between these two columns
+   2) CImodUtil does not differentiate the csv name for -OutImod 1 or
+   -OutImod 2 and 3.
+3. CProcessThread calls CTF estimation before removing dark images if
+   -OutMod 1 is used or after if -OutImod 2 or 3 is used.
+
+AreTomo2 1.1.2 [02-20-2024]
+---------------------------
+1. ImodUtil/CSaveCsv: Make sure the iAcqIdx is 1-based. Find the min iAcqIdx
+   and then subtract the min and add 1. The line number is then iAcqIdx - 1.
+2. DoseWeight/CWeightTomoStack: Check if iAcqIdx is 0-based. If so, add
+   1 to it.

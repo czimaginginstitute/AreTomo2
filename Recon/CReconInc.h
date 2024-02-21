@@ -2,11 +2,9 @@
 #include <cuda.h>
 #include <cufft.h>
 #include <cuda_runtime.h>
-#include <CuUtil/DeviceArray1D.h>
-#include <CuUtil/DeviceArray2D.h>
-#include <CuUtilFFT/GFFT1D.h>
 #include <Util/Util_Thread.h>
 #include "../MrcUtil/CMrcUtilInc.h"
+#include "../Util/CUtilInc.h"
 
 namespace Recon
 {
@@ -21,8 +19,8 @@ public:
 private:
 	int m_iCmpSizeX;
 	int m_iNumProjs;
-	CuUtilFFT::GFFT1D* m_pGForward;
-	CuUtilFFT::GFFT1D* m_pGInverse;
+	Util::GFFT1D* m_pGForward;
+	Util::GFFT1D* m_pGInverse;
 };
 
 class GBackProj

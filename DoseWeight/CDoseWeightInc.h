@@ -33,16 +33,21 @@ public:
 	void Run(Util::CNextItem* pNextItem, int iGpuID);
 	void ThreadMain(void);
 private:
+	void mCheckAcqBase(void);
+	void mSetupDoseWeight(void);
 	void mCorrectProj(int iProj);
 	void mForwardFFT(int iProj);
 	void mInverseFFT(int iProj);
 	void mDoseWeight(int iProj);
+	//-----------------
 	cufftComplex* m_gCmpImg;
 	int m_aiCmpSize[2];
-	Util::CCufft2D m_aForwardFFT;
-	Util::CCufft2D m_aInverseFFT;
+	Util::GFFT2D m_aForwardFFT;
+	Util::GFFT2D m_aInverseFFT;
 	Util::CNextItem* m_pNextItem;
 	GDoseWeightImage* m_pGDoseWeightImg;
+	float* m_pfDoses;
+	int m_iAcqBase;
 	int m_iGpuID;
 };
 }

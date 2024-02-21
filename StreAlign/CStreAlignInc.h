@@ -4,8 +4,6 @@
 #include "../MrcUtil/CMrcUtilInc.h"
 #include "../Correct/CCorrectInc.h"
 #include <Util/Util_Thread.h>
-#include <CuUtil/DeviceArray2D.h>
-#include <CuUtilFFT/GFFT2D.h>
 #include <cufft.h>
 
 namespace StreAlign
@@ -31,7 +29,7 @@ private:
 	cufftComplex* m_gCmpBuf;
 	cufftComplex* m_gCmp;
 	float m_fBFactor;
-	Util::CCufft2D m_cufft2D;
+	Util::GFFT2D m_fft2D;
 	Util::GXcf2D m_xcf2D;
 	int m_aiImgSize[2];
 	int m_aiPadSize[2];

@@ -1,13 +1,20 @@
+#-------------------------------------------------------------------------------
+# 1. CUDAHOME is the full path to the location where CUDA toolkit is installed,
+#    for example CUDAHOME = /usr/local/cuda-12.1 when cuda 12.1 is installed.
+# 2. libutil.a, libmrcfile.a are in LibSrc folder where the source code is
+#    also provided in Util and Mrcfile. To recompile them, run "make clean"
+#    followed by "make all" in Util first and then Mrcfile next.
+#-------------------------------------------------------------------------------
+CUDAHOME = $(HOME)/szheng/nvidia/cuda-12.1
 PRJHOME = $(shell pwd)
-CUDAHOME = $(HOME)/nvidia/cuda-12.1
 CUDAINC = $(CUDAHOME)/include
 CUDALIB = $(CUDAHOME)/lib64
-PRJINC = $(PRJHOME)/Include
-PRJLIB = $(PRJHOME)/Lib
-CUPRJINC = $(PRJHOME)/CuInclude
-CUPRJLIB = $(PRJHOME)/CuLib
-#--------------------------------
+PRJINC = $(PRJHOME)/LibSrc/Include
+PRJLIB = $(PRJHOME)/LibSrc/Lib
+#-------------------
 CUSRCS = ./Util/GAddImages.cu \
+	 ./Util/GFFT1D.cu \
+	 ./Util/GFFT2D.cu \
 	 ./Util/GFFTUtil2D.cu \
 	 ./Util/GNormalize2D.cu \
 	 ./Util/GRoundEdge.cu \
@@ -37,6 +44,7 @@ CUSRCS = ./Util/GAddImages.cu \
 	 ./FindCtf/GRemoveMean.cu \
 	 ./FindCtf/GRmBackground2D.cu \
 	 ./FindCtf/GRoundEdge.cu \
+	 ./FindCtf/GLowpass2D.cu \
 	 ./CommonLine/GFunctions.cu \
 	 ./CommonLine/GCalcCommonRegion.cu \
 	 ./CommonLine/GGenCommonLine.cu \
@@ -68,7 +76,6 @@ SRCS = ./Util/CNextItem.cpp \
 	./Util/CParseArgs.cpp \
 	./Util/CFileName.cpp \
 	./Util/CRemoveSpikes1D.cpp \
-	./Util/CCufft2D.cpp \
 	./Util/CPad2D.cpp \
 	./Util/CPeak2D.cpp \
 	./Util/CTRDecompose2D.cpp \
@@ -79,15 +86,14 @@ SRCS = ./Util/CNextItem.cpp \
 	./MrcUtil/CAlignParam.cpp \
 	./MrcUtil/CLocalAlignParam.cpp \
 	./MrcUtil/CPatchShifts.cpp \
-	./MrcUtil/CSaveAlignFile.cpp \
-	./MrcUtil/CLoadAlignFile.cpp \
+	./MrcUtil/CSaveAlnFile.cpp \
+	./MrcUtil/CLoadAlnFile.cpp \
+	./MrcUtil/CLoadAngFile.cpp \
 	./MrcUtil/CRemoveDarkFrames.cpp \
 	./MrcUtil/CCalcStackStats.cpp \
 	./MrcUtil/CDarkFrames.cpp \
-	./MrcUtil/CAcqSequence.cpp \
-	./MrcUtil/CTiltDoses.cpp \
-	./MrcUtil/CLoadAlignment.cpp \
 	./MrcUtil/CLoadStack.cpp \
+	./MrcUtil/CLoadMain.cpp \
 	./MrcUtil/CSaveStack.cpp \
 	./MrcUtil/CGenCentralSlices.cpp \
 	./MrcUtil/CCropVolume.cpp \
@@ -177,19 +183,17 @@ exe: $(OBJS)
 	@g++ -g -pthread -m64 $(OBJS) \
 	$(PRJLIB)/libmrcfile.a \
 	$(PRJLIB)/libutil.a \
-	$(CUPRJLIB)/libcuutil.a \
-	$(CUPRJLIB)/libcuutilfft.a \
 	-L$(CUDALIB) -L/usr/lib64 \
 	-lcufft -lcudart -lcuda -lc -lm -lpthread \
 	-o AreTomo2
 	@echo AreTomo2 has been generated.
 
 %.o: %.cu
-	@$(NVCC) -c $(CUFLAG) -I$(PRJINC) -I$(CUPRJINC) $< -o $@
+	@$(NVCC) -c $(CUFLAG) -I$(PRJINC) -I$(CUDAINC) $< -o $@
 	@echo $< has been compiled.
 
 %.o: %.cpp
-	@$(CC) $(CFLAG) -I$(PRJINC) -I$(CUPRJINC) -I$(CUDAINC) \
+	@$(CC) $(CFLAG) -I$(PRJINC) -I$(CUDAINC) \
 		$< -o $@
 	@echo $< has been compiled.
 

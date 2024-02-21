@@ -4,8 +4,6 @@
 #include "../Recon/CReconInc.h"
 #include "../Correct/CCorrectInc.h"
 #include <Util/Util_Thread.h>
-#include <CuUtil/DeviceArray2D.h>
-#include <CuUtilFFT/GFFT2D.h>
 #include <cufft.h>
 
 namespace ProjAlign
@@ -136,7 +134,7 @@ private:
         float m_afPeak[2];
         float m_fBFactor;
 	float m_fPower;
-        CuUtilFFT::GFFT2D m_fft2D;
+        Util::GFFT2D m_fft2D;
 };
 
 class CCentralXcf
@@ -165,7 +163,7 @@ private:
 	int m_aiPadSize[2];
 	int m_iXcfBin;
 	//------------
-	CuUtilFFT::GFFT2D m_fft2D;
+	Util::GFFT2D m_fft2D;
 	GProjXcf m_projXcf;
 	float* m_gfPadRef;
 	float* m_gfPadImg;

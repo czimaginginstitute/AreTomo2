@@ -2,7 +2,6 @@
 #include "../Util/CUtilInc.h"
 #include "../MrcUtil/CMrcUtilInc.h"
 #include <Util/Util_Thread.h>
-#include <CuUtilFFT/GFFT2D.h>
 #include <cufft.h>
 
 namespace Correct
@@ -42,8 +41,8 @@ public:
 	int m_aiImgSizeIn[2];
 	int m_aiImgSizeOut[2];
 private:
-	CuUtilFFT::GFFT2D* m_gForward2D;
-	CuUtilFFT::GFFT2D* m_gInverse2D;
+	Util::GFFT2D* m_gForward2D;
+	Util::GFFT2D* m_gInverse2D;
 };
 
 class CCorrLinearInterp
@@ -56,8 +55,8 @@ public:
 private:
 	int m_aiImgSize[2];
 	int m_aiCmpSize[2];
-	CuUtilFFT::GFFT2D* m_gForward2D;
-	CuUtilFFT::GFFT2D* m_gInverse2D;
+	Util::GFFT2D* m_gForward2D;
+	Util::GFFT2D* m_gInverse2D;
 };
 
 class GCorrPatchShift

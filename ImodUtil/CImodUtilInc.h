@@ -16,6 +16,8 @@ private:
 	void mSaveForRelion(void);
 	void mSaveForWarp(void);
 	void mSaveForAligned(void);
+	//-----------------
+	int m_iLineSize;
 	void* m_pvFile;
 	MrcUtil::CAlignParam* m_pGlobalParam;
 };
@@ -33,6 +35,14 @@ private:
 	void mSaveForRelion(void);
 	void mSaveForWarp(void);
 	void mSaveForAligned(void);
+	//-----------------
+	void mGenList(void);
+	void mClean(void);
+	//-----------------
+	int m_iAllTilts;
+	int m_iLineSize;
+	char* m_pcOrderedList;
+	//-----------------
 	void* m_pvFile;
 	MrcUtil::CAlignParam* m_pGlobalParam;
 };
@@ -42,16 +52,19 @@ class CSaveCsv
 public:
 	CSaveCsv(void);
 	~CSaveCsv(void);
-	void DoIt
-	( MrcUtil::CAlignParam* pAlignParam,
-	  const char* pcFileName
-	);
+	void DoIt(const char* pcFileName);
 private:
 	void mSaveForRelion(void);
-        void mSaveForWarp(void);
-        void mSaveForAligned(void);
-        void* m_pvFile;
-        MrcUtil::CAlignParam* m_pGlobalParam;
+	void mSaveForWarp(void);
+	void mSaveForAligned(void);
+	//-----------------
+	void mGenList(void);
+	void mClean(void);
+	//-----------------
+	char* m_pcOrderedList;
+	bool* m_pbDarkImgs;
+	int m_iAllTilts;
+	void* m_pvFile;
 };
 
 class CSaveXtilts

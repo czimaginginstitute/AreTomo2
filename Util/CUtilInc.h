@@ -1,7 +1,5 @@
 #pragma once
 #include <Mrcfile/CMrcFileInc.h>
-#include <CuUtil/DeviceArray2D.h>
-#include <CuUtilFFT/GFFT2D.h>
 #include <cufft.h>
 #include <pthread.h>
 
@@ -32,29 +30,6 @@ public:
 private:
         char** m_argv;
         int m_argc;
-};
-
-class CCufft2D
-{
-public:
-	CCufft2D(void);
-	~CCufft2D(void);
-	void CreateForwardPlan(int* piSize, bool bPad);
-	void CreateInversePlan(int* piSize, bool bCmp);
-	void DestroyPlan(void);
-	bool Forward(float* gfPadImg);
-	bool Forward(float* gfPadImg, bool bNorm);
-	cufftComplex* ForwardH2G(float* pfImg, bool bNorm);
-	bool Inverse(cufftComplex* gCom);
-	float* InverseG2H(cufftComplex* gCmp);
-	void SubtractMean(cufftComplex* gComplex);
-private:
-	bool mCheckError(cufftResult* pResult, const char* pcFormat);
-	const char* mGetErrorEnum(cufftResult error);
-	cufftHandle m_aPlan;
-	cufftType m_aType;
-	int m_iFFTx;
-	int m_iFFTy;
 };
 
 class CNextItem
@@ -181,6 +156,48 @@ public:
 	~GThreshold2D(void);
 	void DoIt(float* gfImg, float fMin, float fMax,
 	   int* piImgSize, bool bPadded);
+};
+
+class GFFT1D
+{
+public:
+	GFFT1D(void);
+	~GFFT1D(void);
+	void DestroyPlan(void);
+	void CreatePlan
+	( int iFFTSize,
+	  int iNumLines,
+	  bool bForward
+	);
+	void Forward(float* gfPadLines,bool bNorm);
+	void Inverse(cufftComplex* gCmpLines);
+private:
+        int m_iFFTSize;
+        int m_iNumLines;
+        cufftType m_cufftType;
+        cufftHandle m_cufftPlan;
+};
+
+class GFFT2D
+{
+public:
+	GFFT2D(void);
+	~GFFT2D(void);
+	void SetStream(cudaStream_t stream);
+	void DestroyPlan(void);
+	void CreatePlan(int* piFFTSize, bool bForward);
+	void Forward(float* gfPadImg, bool bNorm);
+	void Forward(float* gfImg, cufftComplex* gCmp, bool bNorm);
+	void Inverse(cufftComplex* gCmp);
+	void Inverse(cufftComplex* gCmp, float* gfImg);
+	void RemoveAmp(cufftComplex* gCmp, int* piCmpSize);
+private:
+	void mNormalize(cufftComplex* gCmpImg);
+	void mCheckError(cufftResult error, const char* pcFunc);
+	int m_aiFFTSize[2];
+	cufftType m_cufftType;
+	cufftHandle m_cufftPlan;
+	cudaStream_t m_aStream;
 };
 
 class GFFTUtil2D
@@ -317,7 +334,7 @@ public:
 private:
 	float m_afShift[2];
 	float m_fBFactor;
-	CuUtilFFT::GFFT2D m_fft2D;
+	GFFT2D m_fft2D;
 };
 
 class GRotate2D
@@ -462,7 +479,7 @@ private:
 	void mForwardFFT(void);
 	GBinImage2D m_binImg2D;
 	GStretch m_stretch;
-	CCufft2D m_cufft2D;
+	GFFT2D m_fft2D;
 	cufftComplex* m_gCmp1;
 	cufftComplex* m_gCmp2;
 	int m_iBinning;

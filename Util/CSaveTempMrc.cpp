@@ -32,15 +32,16 @@ void CSaveTempMrc::GDoIt(cufftComplex* gCmp, int* piCmpSize)
 {
 	int aiPadSize[]= {0, piCmpSize[1]};
 	aiPadSize[0] = piCmpSize[0] * 2;
-	//------------------------------
-	CCufft2D cufft2D;
-	cufft2D.CreateInversePlan(piCmpSize, true);
-	cufft2D.Inverse(gCmp);
+	//-----------------
+	GFFT2D fft2D;
+	int aiFFTSize[] = {(piCmpSize[0] - 1) * 2, piCmpSize[1]};
+	fft2D.CreatePlan(aiFFTSize, false);
+	fft2D.Inverse(gCmp);
 	//--------------------
 	this->GDoIt((float*)gCmp, aiPadSize);
 	//-----------------------------------
-	cufft2D.CreateForwardPlan(aiPadSize, true);
-	cufft2D.Forward((float*)gCmp, aiPadSize);
+	fft2D.CreatePlan(aiFFTSize, true);
+	fft2D.Forward((float*)gCmp, true);
 }
 
 void CSaveTempMrc::GDoIt(float* gfImg, int* piSize)

@@ -1,9 +1,9 @@
 #include "CStreAlignInc.h"
 #include "../Util/CUtilInc.h"
 #include "../Correct/CCorrectInc.h"
-#include <CuUtilFFT/GFFT2D.h>
 #include <memory.h>
 #include <stdio.h>
+#include <cuda_runtime.h>
 
 using namespace StreAlign;
 

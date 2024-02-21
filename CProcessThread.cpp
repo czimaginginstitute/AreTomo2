@@ -40,12 +40,11 @@ CProcessThread::~CProcessThread(void)
 	if(m_pCorrTomoStack != 0L) delete m_pCorrTomoStack;
 }
 
-bool CProcessThread::DoIt(MrcUtil::CTomoStack* pTomoStack)
+bool CProcessThread::DoIt(void)
 {	
 	bool bExit = this->WaitForExit(10000000.0f);
 	if(!bExit) return false;
-	//----------------------
-	m_pTomoStack = pTomoStack;
+	//-----------------
 	this->Start();
 	return true;
 }
@@ -55,17 +54,29 @@ void CProcessThread::ThreadMain(void)
 	printf("\nProcess thread has been started.\n\n");
 	CInput* pInput = CInput::GetInstance();
 	cudaSetDevice(pInput->m_piGpuIDs[0]);
-	//-----------------------------------
-	MrcUtil::CLoadAlignment* pLoadAlign = 
-	   MrcUtil::CLoadAlignment::GetInstance();
-	m_pAlignParam = pLoadAlign->GetAlignParam(true);
-	m_pLocalParam = pLoadAlign->GetLocalParam(true);
-	//----------------------------------------------
+	//-----------------
+	MrcUtil::CLoadMain* pLoadMain = 
+	   MrcUtil::CLoadMain::GetInstance();
+	bool bLoaded = pLoadMain->DoIt();
+	if(!bLoaded) return;
+	//-----------------
+	m_pTomoStack = pLoadMain->GetTomoStack(true);
+	m_pAlignParam = pLoadMain->GetAlignParam(true);
+	m_pLocalParam = pLoadMain->GetLocalParam(true);
+	//-----------------
 	PA::CRemoveSpikes::DoIt(m_pTomoStack, pInput->m_piGpuIDs,
 	   pInput->m_iNumGpus);
 	mSetPositivity();	
-	//---------------
-	mFindCtf();
+	//-----------------
+	if(pInput->m_iOutImod == 1)
+	{	mFindCtf();
+		mRemoveDarkFrames();
+	}
+	else
+	{	mRemoveDarkFrames();
+		mFindCtf();
+	}
+	//-----------------
 	mAlign();
 	mDoseWeight();
 	mSetPositivity();
@@ -86,11 +97,29 @@ void CProcessThread::ThreadMain(void)
 	printf("Process thread exits.\n\n");
 }
 
+void CProcessThread::mRemoveDarkFrames(void)
+{
+	CInput* pInput = CInput::GetInstance();
+	if(pInput->m_iAlign == 0) return;
+        //-----------------
+        printf("Remove dark images...\n");
+        MrcUtil::CRemoveDarkFrames::DoIt(m_pTomoStack, 
+	   m_pAlignParam, pInput->m_fDarkTol, 
+	   pInput->m_piGpuIDs, pInput->m_iNumGpus);
+        printf("Remove dark images: done.\n\n");
+	//-----------------
+	cudaSetDevice(pInput->m_piGpuIDs[0]);
+}
+
+
 void CProcessThread::mFindCtf(void)
 {
+	CInput* pInput = CInput::GetInstance();
+        if(pInput->m_iAlign == 0) return;
+	//-----------------
 	FindCtf::CFindCtfMain aFindCtfMain;
 	if(!aFindCtfMain.CheckInput()) return;
-	//------------------------------------
+	//-----------------
 	aFindCtfMain.DoIt(m_pTomoStack, m_pAlignParam);
 }
 
@@ -98,27 +127,23 @@ void CProcessThread::mAlign(void)
 {
 	CInput* pInput = CInput::GetInstance();
 	if(pInput->m_iAlign == 0) return;
-	//-------------------------------------
+	//------------------
 	PatchAlign::CRoiTargets* pRoiTargets = 
 	   PatchAlign::CRoiTargets::GetInstance();
 	pRoiTargets->LoadRoiFile();
 	pRoiTargets->SetTargetImage(m_pAlignParam);
-	//-----------------------------------------	
+	//------------------	
 	MassNorm::CLinearNorm aLinearNorm;
 	aLinearNorm.DoIt(m_pTomoStack, m_pAlignParam);
-	//--------------------------------------------
-	MrcUtil::CLoadAlignment* pLoadAlign = 
-	   MrcUtil::CLoadAlignment::GetInstance();
-	if(pLoadAlign->m_bFromAlnFile) return;
-	//------------------------------------
+	//------------------
 	m_fRotScore = 0.0f;
 	mCoarseAlign();
-	//------------------------------------
+	//-----------------
 	m_pAlignParam->ResetShift();
 	ProjAlign::CParam* pParam = ProjAlign::CParam::GetInstance();
 	pParam->m_fXcfSize = 2048.0f;
 	mProjAlign();
-	//-----------
+	//-----------------
 	if(pInput->m_afTiltAxis[1] >= 0)
 	{	float fRange = (pInput->m_afTiltAxis[0] == 0) ? 20.0f : 6.0f;
 		int iIters = (pInput->m_afTiltAxis[0] == 0) ? 4 : 2;
@@ -128,19 +153,15 @@ void CProcessThread::mAlign(void)
 		}
 		mProjAlign();
 	}
-	//------------------------------------------------------------------
+	//------------------
 	pRoiTargets->MapToUntiltImage(m_pAlignParam, m_pTomoStack);
 	mPatchAlign();
-	//------------
+	//------------------
 	if(pInput->m_afTiltCor[0] == 0) 
 	{	m_pAlignParam->AddTiltOffset(-m_fTiltOffset);
 	}
 	else
-	{	MrcUtil::CAcqSequence* pAcqSequence = 
-		   MrcUtil::CAcqSequence::GetInstance();
-		pAcqSequence->AddTiltOffset(m_fTiltOffset);
-		//-----------------------------------------
-		MrcUtil::CDarkFrames* pDarkFrames = 
+	{	MrcUtil::CDarkFrames* pDarkFrames = 
 		   MrcUtil::CDarkFrames::GetInstance();
 		pDarkFrames->AddTiltOffset(m_fTiltOffset);
 	}
@@ -237,13 +258,13 @@ void CProcessThread::mFindTiltOffset(void)
 {
 	CInput* pInput = CInput::GetInstance();
 	if(pInput->m_afTiltCor[0] < 0) return;
-	//------------------------------------
+	//-----------------
 	if(fabs(pInput->m_afTiltCor[1]) > 0.1)
         {       m_fTiltOffset = pInput->m_afTiltCor[1];
                 m_pAlignParam->AddTiltOffset(m_fTiltOffset);
 		return;
         }
-	//-------------
+	//-----------------
 	TiltOffset::CTiltOffsetMain aTiltOffsetMain;
 	aTiltOffsetMain.Setup(m_pTomoStack->m_aiStkSize, 4, 0);
 	float fTiltOffset = aTiltOffsetMain.DoIt(m_pTomoStack, m_pAlignParam);
@@ -456,16 +477,16 @@ void CProcessThread::mFlipVol(void)
 {
 	CInput* pInput = CInput::GetInstance();
 	if(pInput->m_iFlipVol == 0) return;
-	//---------------------------------
+	//-----------------
 	printf("Flip volume from xzy view to xyz view.\n");
 	int* piOldSize = m_pTomoStack->m_aiStkSize;
 	int aiNewSize[] = {piOldSize[0], piOldSize[2], piOldSize[1]};
 	MrcUtil::CTomoStack* pNewStack = new MrcUtil::CTomoStack;
-	pNewStack->Create(aiNewSize, true);
-	//---------------------------------
+	pNewStack->Create(aiNewSize);
+	//-----------------
 	int iBytes = aiNewSize[0] * sizeof(float);
 	int iEndOldY = piOldSize[1] - 1;
-	//------------------------------
+	//-----------------
 	for(int y=0; y<piOldSize[1]; y++)
 	{	float* pfDstFrm = pNewStack->GetFrame(iEndOldY - y);
 		for(int z=0; z<piOldSize[2]; z++)
@@ -482,19 +503,15 @@ void CProcessThread::mFlipVol(void)
 	printf("flip volume completed.\n\n");
 }
 
-
 void CProcessThread::mSaveAlignment(void)
 {
 	CInput* pInput = CInput::GetInstance();
 	if(pInput->m_iAlign == 0) return;
-	//------------------------------- 
-	MrcUtil::CLoadAlignment* pLoadAlign =
-           MrcUtil::CLoadAlignment::GetInstance();
-        if(pLoadAlign->m_bFromAlnFile) return;
-	//------------------------------------	
-	MrcUtil::CSaveAlignFile saveAlignFile;
-	saveAlignFile.DoIt(pInput->m_acInMrcFile, pInput->m_acOutMrcFile, 
-	   m_pAlignParam, m_pLocalParam);
+	//-----------------
+	MrcUtil::CSaveAlnFile saveAlnFile;
+	saveAlnFile.DoIt(pInput->m_acInMrcFile, 
+	   pInput->m_acOutMrcFile, m_pAlignParam, 
+	   m_pLocalParam);
 }
 
 
