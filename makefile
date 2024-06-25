@@ -182,6 +182,7 @@ exe: $(OBJS)
 	$(PRJLIB)/libmrcfile.a \
 	$(PRJLIB)/libutil.a \
 	-L$(CUDALIB) -L/usr/lib64 \
+	-no-pie \
 	-lcufft -lcudart -lcuda -lc -lm -lpthread \
 	-o AreTomo2
 	@echo AreTomo2 has been generated.
