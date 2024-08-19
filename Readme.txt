@@ -375,3 +375,18 @@ AreTomo2 1.1.2 [02-20-2024]
    and then subtract the min and add 1. The line number is then iAcqIdx - 1.
 2. DoseWeight/CWeightTomoStack: Check if iAcqIdx is 0-based. If so, add
    1 to it.
+
+AreTomo2 1.1.3 [06-17-2024]
+---------------------------
+1. Bug fix: random tilt angle values saved in .aln file.
+   1) m_fTiltOffset in CProcessThread.cpp was not inititialized. Some
+      system initializes it with a random large numbers. When -TiltCor -1
+      is used, tilt offset is not estimated and m_fTiltOffset stores the 
+      random value, rather than zero that is added to the tilt angles.
+      Fix: added m_fTiltOffset = 0 in mFindTiltOffset. [06-17-2024]
+2. Bug fix: AreTomo2 crashed when tilt angle file only has one column.
+   1) To be done.
+3. Bug fix: ProjAlign/CCalcReproj::mFindProjRange: needs to check whether
+   m_aiProjRange constains -1. Fixed on 08-19-2024.
+4. Added in MrcUtil/CRemoveDarkFrames.cpp a check for flat images that have
+   very small sigma. They are rejected. 
