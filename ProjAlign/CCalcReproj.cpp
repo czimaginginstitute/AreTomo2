@@ -108,6 +108,17 @@ void CCalcReproj::mFindProjRange(float* pfTiltAngles, bool* pbSkipProjs)
 		iEnd = i;
 	}
 	//---------------------------------------------
+	// 1) Prevent an unusual situation where the
+	// angular step is so large causing stretching
+	// factor larger that allowed. 2) In that case
+	// we just use the nearest lower tilt image.
+	//---------------------------------------------
+	if(iStart < 0 || iEnd < 0)
+	{	int iSign = (fProjA > 0) ? 1 : -1;
+		iStart = m_iProjIdx - iSign;
+		iEnd = iStart;
+	}
+	//-----------------
 	if((iEnd - iStart) > 9) iEnd = iStart + 9;
 	m_aiProjRange[0] = iStart;
 	m_aiProjRange[1] = iEnd;

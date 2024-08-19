@@ -69,8 +69,12 @@ void CRemoveDarkFrames::DoIt
 	pDarkFrames->Setup(s_pTomoStack);
 	//-----------------
 	for(int i=0; i<iAllFrms; i++)
-	{	float fRatio = (float)fabs(pfMeans[i]) / 
-		   (pfStds[i] + 0.000001f);
+	{	if(pfStds[i] <= 1e-10)
+		{	pDarkFrames->AddDark(i);
+			continue;
+		}
+		//----------------
+		float fRatio = (float)fabs(pfMeans[i]) / pfStds[i];
 		if(fRatio > fTol) continue;
 		//----------------
 		pDarkFrames->AddDark(i);

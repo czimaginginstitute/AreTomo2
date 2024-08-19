@@ -256,6 +256,7 @@ void CProcessThread::mRotAlign(void)
 
 void CProcessThread::mFindTiltOffset(void)
 {
+	m_fTiltOffset = 0.0f;
 	CInput* pInput = CInput::GetInstance();
 	if(pInput->m_afTiltCor[0] < 0) return;
 	//-----------------
